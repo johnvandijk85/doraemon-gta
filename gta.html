@@ -1,0 +1,3608 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Theft Doraemon</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #333;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 20px;
+            pointer-events: none;
+            text-shadow: 2px 2px 0 #000;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui">
+        <div>Health: <span id="health">100</span> | <span style="color: #33ccff;">Armor: <span
+                    id="armor">0</span></span></div>
+        <div>Wanted: <span id="wanted">0</span> Stars | <span style="color: gold;">¥ <span id="score">0</span></span>
+        </div>
+        <div id="mission-panel" style="margin-top: 5px; color: #ccff00; font-weight: bold;">Mission: Loading...</div>
+        <div style="font-size: 14px; margin-top: 10px;">WASD to Move | F to Enter/Exit Car | Earn ¥ by Stealing &
+            Fighting</div>
+    </div>
+    <div id="mission-complete"
+        style="display: none; position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-family: 'Arial Black', sans-serif; font-size: 60px; color: #ccff00; text-shadow: 4px 4px 0px #000; z-index: 101; text-align: center;">
+        MISSION PASSED<br><span id="mission-reward" style="font-size: 40px; color: gold;">+¥10,000</span>
+    </div>
+    <div id="wasted"
+        style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: 'Arial Black', sans-serif; font-size: 80px; color: #cc0000; text-shadow: 4px 4px 0px #000; z-index: 100;">
+        WASTED</div>
+    <div id="mission-failed"
+        style="display: none; position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); font-family: 'Arial Black', sans-serif; font-size: 50px; color: #cc0000; text-shadow: 4px 4px 0px #000; z-index: 101; text-align: center;">
+        MISSION FAILED
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        window.onerror = function (message, source, lineno, colno, error) {
+            document.getElementById('ui').innerHTML += '<div style="color:red; background:rgba(0,0,0,0.8); padding:10px;">ERROR: ' + message + ' at line ' + lineno + '</div>';
+        };
+
+        // Assets
+        const assets = {};
+        const assetList = {
+            player: 'assets/images/doraemon_top.png',
+            road: 'assets/images/gta_road.png',
+            intersection: 'assets/images/gta_intersection.png',
+            sidewalk: 'assets/images/gta_sidewalk.png',
+            corner: 'assets/images/gta_sidewalk_corner.png',
+            pay_phone: 'assets/images/pay_phone.png', // New Asset
+            grass: 'assets/images/gta_grass.png',
+            roof: 'assets/images/gta_roof.png',
+            car1: 'assets/images/time_machine_car.png',
+            car2: 'assets/images/mini_dora_car.png',
+            car2: 'assets/images/mini_dora_car.png',
+            car_blue: 'assets/images/car_blue.png',
+            car_green: 'assets/images/car_green.png',
+            car_yellow: 'assets/images/car_yellow.png',
+            enemy1: 'assets/images/gian_top.png',
+            enemy2: 'assets/images/nobita_top.png',
+            crater: 'assets/images/crater_v3.png',
+            pickup_health: 'assets/images/pickup_health_v3.png',
+            pickup_armor: 'assets/images/pickup_armor_v3.png',
+            explosion: 'assets/images/explosion_v3.png',
+            roof_commercial: 'assets/images/roof_commercial.png',
+            roof_residential: 'assets/images/roof_residential.png',
+            roof_highrise: 'assets/images/roof_highrise.png',
+            iso_commercial: 'assets/images/iso_commercial.png',
+            iso_residential: 'assets/images/iso_residential.png',
+            iso_highrise: 'assets/images/iso_highrise.png',
+            car_3d: 'assets/images/car_3d.png',
+            player_3d: 'assets/images/player_3d.png',
+            police: 'assets/images/police_top.png',
+            police_car: 'assets/images/police_car_3d.png',
+            target_enemy: 'assets/images/target_enemy.png', // New Asset
+            iso_park_props: 'assets/images/iso_park_props.png',
+            iso_nobita_house: 'assets/images/iso_nobita_house.png',
+            iso_school: 'assets/images/iso_school.png',
+            iso_shop: 'assets/images/iso_shop.png',
+            iso_future_house: 'assets/images/iso_future_house.png',
+            iso_nobita_house: 'assets/images/iso_nobita_house.png',
+            iso_school: 'assets/images/iso_school.png',
+            // New Ground Assets
+            iso_ground_japan_street: 'assets/images/iso_ground_japan_street.png',
+            iso_ground_garden: 'assets/images/iso_ground_garden.png',
+            iso_ground_school: 'assets/images/iso_ground_school.png',
+            // Street Props
+            iso_prop_sakura: 'assets/images/iso_prop_sakura.png',
+            iso_prop_pipes: 'assets/images/iso_prop_pipes.png',
+            iso_prop_vending: 'assets/images/iso_prop_vending.png',
+            iso_prop_mailbox: 'assets/images/iso_prop_mailbox.png',
+            // Doraemon Items
+            bamboo_copter: 'assets/images/bamboo_copter.png',
+            anywhere_door: 'assets/images/anywhere_door.png',
+            dorayaki: 'assets/images/dorayaki.png'
+        };
+
+        let assetsLoaded = 0;
+        const totalAssets = Object.keys(assetList).length;
+
+        function loadAssets(callback) {
+            for (let key in assetList) {
+                const img = new Image();
+                img.src = assetList[key];
+                img.onload = () => {
+                    assetsLoaded++;
+                    if (assetsLoaded === totalAssets) callback();
+                };
+                img.onerror = () => {
+                    console.error("Failed to load " + assetList[key]);
+                    assetsLoaded++;
+                    if (assetsLoaded === totalAssets) callback();
+                };
+                assets[key] = img;
+            }
+        }
+
+        // Game State
+        let width, height;
+        const CAM_ZOOM = 2.5;
+        let wantedLevel = 0;
+        let policeSpawnTimer = 0;
+
+        // Missions
+        let mission = {
+            active: false,
+            type: null,
+            target: 0,
+            current: 0,
+            description: "",
+            reward: 0,
+            timer: 0, // Delay before starting next
+            dropOff: null // {x, y} for steal missions
+        };
+
+        function startMission() {
+            const types = ['kill', 'steal'];
+            const type = types[Math.floor(Math.random() * types.length)];
+
+            mission.active = true;
+            mission.current = 0;
+            mission.timer = 0;
+
+            if (type === 'kill') {
+                mission.type = 'kill';
+                mission.target = 3 + Math.floor(Math.random() * 5); // 3-7 kills
+                mission.reward = 5000 + (mission.target * 1000); // Base 5k + 1k per kill
+                mission.description = `Hitman: Neutralize ${mission.target} Enemies`;
+                spawnMissionEnemies(mission.target); // Spawn specific targets
+            } else if (type === 'steal') {
+                mission.type = 'steal';
+                mission.target = 2 + Math.floor(Math.random() * 3); // 2-4 cars
+                mission.reward = 10000 + (mission.target * 2000); // Base 10k + 2k per car
+                mission.description = `Grand Theft: Steal ${mission.target} Cars`;
+
+                // Set Drop-off Location (Random Road Intersection)
+                // Find a valid intersection far enough? Or just random intersection.
+                let dx, dy;
+                do {
+                    dx = Math.floor(Math.random() * (mapWidth / GRID_SIZE)) * GRID_SIZE;
+                    dy = Math.floor(Math.random() * (mapHeight / GRID_SIZE)) * GRID_SIZE;
+                } while (Math.hypot(dx * TILE_SIZE - player.x, dy * TILE_SIZE - player.y) < 800); // Min distance
+
+                mission.dropOff = {
+                    x: dx * TILE_SIZE + TILE_SIZE / 2,
+                    y: dy * TILE_SIZE + TILE_SIZE / 2
+                };
+            }
+            updateUI();
+
+            // Play Mission Voice
+            if (mission.type === 'kill') playSound('mission_kill', false, 0.8);
+            else if (mission.type === 'steal') playSound('mission_steal', false, 0.8);
+        }
+
+        function spawnMissionEnemies(count) {
+            for (let i = 0; i < count; i++) {
+                let tx, ty;
+                let attempts = 0;
+                // Spawn within a reasonable distance (500-1000)
+                const minDist = 500;
+                const maxDist = 1200;
+
+                do {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = minDist + Math.random() * (maxDist - minDist);
+                    const spawnX = player.x + Math.cos(angle) * dist;
+                    const spawnY = player.y + Math.sin(angle) * dist;
+
+                    tx = Math.floor(spawnX / TILE_SIZE);
+                    ty = Math.floor(spawnY / TILE_SIZE);
+                    attempts++;
+                } while (attempts < 50 && (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight || (map[ty][tx] !== 1 && map[ty][tx] !== 6)));
+
+                if (attempts < 50) {
+                    // Force sidewalk spawn if possible, otherwise rely on loop
+                    if (tx >= 0 && tx < mapWidth && ty >= 0 && ty < mapHeight && (map[ty][tx] === 1 || map[ty][tx] === 6)) {
+                        npcs.push({
+                            x: tx * TILE_SIZE + TILE_SIZE / 2,
+                            y: ty * TILE_SIZE + TILE_SIZE / 2,
+                            type: 'target_enemy', // Use new asset
+                            isMissionTarget: true,
+                            angle: Math.random() * Math.PI * 2,
+                            speed: 0,
+                            state: 'idle',
+                            stateTimer: Math.random() * 100,
+                            width: 40,
+                            height: 40,
+                            weapon: 'pistol',
+                            shootTimer: 0,
+                            health: 120 // Slightly tougher
+                        });
+                    }
+                }
+            }
+        }
+
+        function checkMission(type) {
+            if (!mission.active) return;
+            if (mission.type === type) {
+                mission.current++;
+                updateUI();
+
+                if (mission.current >= mission.target) {
+                    // Mission Complete
+                    mission.active = false;
+                    player.score += mission.reward;
+
+                    // Show Overlay
+                    const overlay = document.getElementById('mission-complete');
+                    document.getElementById('mission-reward').textContent = "+¥" + mission.reward.toLocaleString();
+                    overlay.style.display = 'block';
+
+                    setTimeout(() => {
+                        playSound('accomplished'); // Success sound
+                    }, 500);
+
+                    updateUI();
+
+                    // Hide later and start new mission
+                    setTimeout(() => {
+                        overlay.style.display = 'none';
+                        mission.timer = 200; // Delay next mission start
+                    }, 3500); // 3s + 0.5s delay
+                }
+            }
+        }
+
+        // Player
+        const player = {
+            x: 600,
+            y: 600,
+            angle: 0,
+            speed: 0,
+            walkSpeed: 1, // Separate speed for walking
+            maxSpeed: 6, // For car
+            rotationSpeed: 0.1,
+            inCar: false,
+            carType: null, // 'car1' or 'car2'
+            width: 48,
+            height: 48,
+            weapon: 'pistol', // 'pistol' or 'machinegun'
+            ammo: 999,
+            lastShotTime: 0,
+            health: 100,
+            maxHealth: 100,
+            armor: 0,
+            maxArmor: 100,
+            armor: 0,
+            maxArmor: 100,
+            hasMachineGun: false,
+            score: 0,
+            currentCarStolen: false,
+            currentTurnSpeed: 0, // For smooth steering
+            // Doraemon Mechanics
+            isFlying: false,
+            z: 0, // Height for flight
+            superModeTimer: 0,
+            anywhereDoorCooldown: 0
+        };
+
+        // Map (Simple Tiling)
+        // 0: Asphalt (Vertical), 1: Sidewalk, 2: Grass, 3: Roof, 4: Asphalt (Horizontal), 5: Intersection, 6: Corner Sidewalk
+        const TILE_SIZE = 64;
+        const mapWidth = 200;
+        const mapHeight = 200;
+        const map = [];
+
+        // Generate a grid
+        // Block Size 7 (1 Road + 6 Inner)
+        const GRID_SIZE = 7;
+
+        for (let y = 0; y < mapHeight; y++) {
+            const row = [];
+            for (let x = 0; x < mapWidth; x++) {
+                if (x === 0 || x === mapWidth - 1 || y === 0 || y === mapHeight - 1) row.push(3); // Border Buildings
+                else if (x % GRID_SIZE === 0 && y % GRID_SIZE !== 0) row.push(0); // Roads Vertical
+                else if (y % GRID_SIZE === 0 && x % GRID_SIZE !== 0) row.push(4); // Roads Horizontal
+                else if (x % GRID_SIZE === 0 && y % GRID_SIZE === 0) row.push(5); // Intersections
+
+                // Sidewalks at indices 1 and 6
+                else if ((x % GRID_SIZE === 1 || x % GRID_SIZE === 6) && (y % GRID_SIZE === 1 || y % GRID_SIZE === 6)) row.push(6); // Corner Sidewalk
+                else if ((x % GRID_SIZE === 1 || x % GRID_SIZE === 6) && (y % GRID_SIZE !== 0)) row.push(1); // Sidewalks vertical
+                else if ((y % GRID_SIZE === 1 || y % GRID_SIZE === 6) && (x % GRID_SIZE !== 0)) row.push(1); // Sidewalks horizontal
+
+                else {
+                    // Inner Area (Indices 2,3,4,5) - Buildings or Parks
+                    const bx = Math.floor(x / GRID_SIZE);
+                    const by = Math.floor(y / GRID_SIZE);
+                    // Deterministic pseudo-random based on block coords
+                    const blockSeed = Math.abs(Math.sin(bx * 12.9898 + by * 78.233) * 43758.5453);
+
+                    // 30% chance that one quadrant is a park
+                    const hasPark = (blockSeed % 1) < 0.3;
+                    const parkQuadIndex = Math.floor((blockSeed * 10) % 4); // 0,1,2,3
+
+                    // Determine current quadrant
+                    const mx = x % GRID_SIZE; // 2..5
+                    const my = y % GRID_SIZE; // 2..5
+
+                    let qIdx = -1;
+                    if (mx <= 3 && my <= 3) qIdx = 0; // Top-Left (2,2)-(3,3)
+                    else if (mx >= 4 && my <= 3) qIdx = 1; // Top-Right (4,2)-(5,3)
+                    else if (mx <= 3 && my >= 4) qIdx = 2; // Bottom-Left (2,4)-(3,5)
+                    else if (mx >= 4 && my >= 4) qIdx = 3; // Bottom-Right (4,4)-(5,5)
+
+                    if (hasPark && qIdx === parkQuadIndex) {
+                        row.push(2); // Grass / Park
+                    } else {
+                        row.push(3); // Building
+                    }
+                }
+            }
+            map.push(row);
+        }
+
+        // Input
+        const keys = {};
+
+        // Isometric Projection Helper
+        function toIso(x, y) {
+            return {
+                x: (x - y),
+                y: (x + y) / 2
+            };
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'KeyF') player.tryEnterCar = true;
+            if (e.code === 'KeyC') {
+                if (!player.inCar) { // Can't fly in car (yet)
+                    player.isFlying = !player.isFlying;
+                    if (player.isFlying) {
+                        player.z = 100; // Take off height
+                        playSound('engine', false, 0.5); // Use engine sound for now or maybe none
+                    } else {
+                        player.z = 0; // Land
+                    }
+                }
+            }
+        });
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        function checkArgCollision(newX, newY) {
+            // Player Box (Adjust for car size if needed)
+            const w = player.inCar ? 48 : player.width;
+            const h = player.inCar ? 96 : player.height;
+            const halfW = w / 4;
+            const halfH = h / 4;
+
+            const points = [
+                { x: newX - halfW, y: newY - halfH },
+                { x: newX + halfW, y: newY - halfH },
+                { x: newX - halfW, y: newY + halfH },
+                { x: newX + halfW, y: newY + halfH }
+            ];
+
+            for (let p of points) {
+                const tx = Math.floor(p.x / TILE_SIZE);
+                const ty = Math.floor(p.y / TILE_SIZE);
+
+                if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) return true; // Out of bounds
+
+                // Flight Logic: Ignore obstacles if flying (but respect map bounds above)
+                if (player.isFlying) return false;
+
+                // Flight Logic: Ignore obstacles if flying (but respect map bounds above)
+                if (player.isFlying) return false;
+
+                // 1. Explicitly check Map Borders (Indices 0 and mapWidth-1)
+                // These are always Type 3, but the modulo logic below would treat them as Walkable Back-yards.
+                if (tx === 0 || tx === mapWidth - 1 || ty === 0 || ty === mapHeight - 1) return true;
+
+                const tile = map[ty][tx];
+                if (tile === 3) {
+                    // Check if we are in a 2x2 building block (Grid 7 logic)
+                    // Inner blocks are indices 2,3,4,5.
+                    // 2x2 Anchors are at (2,2), (2,4), (4,2), (4,4).
+                    // We want to allow walking on the "Back" parts (Top/Left in Iso) to prevent clipping issues
+                    // and allow walking on "sidewalk" under building edges.
+                    // Truly solid tiles should only be the "Front" (Bottom-Right) of the 2x2 block?
+                    // Front corners are (3,3), (3,5), (5,3), (5,5).
+
+                    const mx = tx % 7;
+                    const my = ty % 7;
+
+                    // If it is a front corner, it is solid.
+                    if ((mx === 3 || mx === 5) && (my === 3 || my === 5)) return true;
+
+                    // Otherwise, allow walking (it's the back/side of the building)
+                    // renderList sorting handles the depth (Player behind building).
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        // NPCs
+        const npcs = [];
+        const NPC_COUNT = 600;
+
+        function spawnNPCs() {
+            npcs.length = 0;
+            let attempts = 0;
+            while (npcs.length < NPC_COUNT && attempts < NPC_COUNT * 5) {
+                const tx = Math.floor(Math.random() * mapWidth);
+                const ty = Math.floor(Math.random() * mapHeight);
+                attempts++;
+
+                const tile = map[ty][tx];
+                // Spawn on Sidewalk (1) or Park Walkway (6)
+                if (tile === 1 || tile === 6) {
+                    const isPolice = Math.random() < 0.1;
+                    npcs.push({
+                        x: tx * TILE_SIZE + TILE_SIZE / 2,
+                        y: ty * TILE_SIZE + TILE_SIZE / 2,
+                        type: isPolice ? 'police' : (Math.random() > 0.5 ? 'enemy1' : 'enemy2'),
+                        isPolice: isPolice,
+                        angle: Math.random() * Math.PI * 2,
+                        speed: 0,
+                        state: 'idle',
+                        stateTimer: Math.random() * 100,
+                        width: 40,
+                        height: 40,
+                        weapon: isPolice ? 'pistol' : 'none',
+                        shootTimer: 0
+                    });
+                }
+            }
+        }
+
+
+        function updateNPCs() {
+            npcs.forEach(npc => {
+                // Police Logic (unchanged for now, or minimal integration)
+                let isAttacking = false;
+                if (npc.isPolice && wantedLevel > 0) {
+                    const dist = Math.hypot(npc.x - player.x, npc.y - player.y);
+                    if (dist < 400) {
+                        isAttacking = true;
+                        npc.angle = Math.atan2(player.y - npc.y, player.x - npc.x);
+                        npc.speed = 0;
+                        npc.shootTimer--;
+                        if (npc.shootTimer <= 0) {
+                            npc.shootTimer = 60 + Math.random() * 60;
+                            bullets.push({
+                                x: npc.x + Math.cos(npc.angle) * 20,
+                                y: npc.y + Math.sin(npc.angle) * 20,
+                                angle: npc.angle + (Math.random() - 0.5) * 0.1,
+                                speed: 12,
+                                life: 60,
+                                owner: 'enemy'
+                            });
+                            playSound('shoot', false, 0.4);
+                        }
+                    }
+                }
+
+                if (!isAttacking) {
+                    npc.stateTimer--;
+
+                    // State Machine
+                    // States: 'idle', 'walk', 'wait_to_cross', 'crossing'
+
+                    if (npc.state === 'idle') {
+                        if (npc.stateTimer <= 0) {
+                            npc.state = 'walk';
+                            npc.stateTimer = 100 + Math.random() * 200;
+                            // Pick a cardinal direction (0, 90, 180, 270)
+                            const dirs = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+                            npc.angle = dirs[Math.floor(Math.random() * dirs.length)];
+                            npc.speed = 1 + Math.random() * 0.5;
+                        }
+                    } else if (npc.state === 'walk') {
+                        if (npc.stateTimer <= 0) {
+                            npc.state = 'idle';
+                            npc.stateTimer = 50 + Math.random() * 100;
+                            npc.speed = 0;
+                        } else {
+                            // Move
+                            const nextX = npc.x + Math.cos(npc.angle) * npc.speed;
+                            const nextY = npc.y + Math.sin(npc.angle) * npc.speed;
+
+                            // Check Collision ahead
+                            // We want to detect if we are about to hit a NON-Sidewalk tile
+                            const halfW = npc.width / 4;
+                            const points = [
+                                { x: nextX, y: nextY } // Center point check is usually enough for grid logic
+                            ];
+
+                            let hitWall = false;
+                            let hitRoad = false;
+
+                            const tx = Math.floor(nextX / TILE_SIZE);
+                            const ty = Math.floor(nextY / TILE_SIZE);
+
+                            if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) {
+                                hitWall = true;
+                            } else {
+                                const tile = map[ty][tx];
+                                if (tile === 3 || tile === 2) hitWall = true; // Building or Grass/Park (Keep on sidewalk)
+                                if (tile === 0 || tile === 4 || tile === 5) hitRoad = true; // Road / Intersection
+                            }
+
+                            if (hitWall) {
+                                // Turn Around or Pick New Direction
+                                const dirs = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+                                npc.angle = dirs[Math.floor(Math.random() * dirs.length)];
+                                // Use integer logic to align?
+                                npc.x = Math.round(npc.x);
+                                npc.y = Math.round(npc.y);
+                            } else if (hitRoad) {
+                                // Decision: Cross or Turn?
+                                if (Math.random() < 0.2) { // 20% chance to cross
+                                    // Check Traffic
+                                    // Simple check: Is there a car coming in this lane?
+                                    // For now, let's just wait and see
+                                    npc.state = 'wait_to_cross';
+                                    npc.stateTimer = 60; // 1 second wait
+                                    npc.speed = 0;
+                                } else {
+                                    // Turn (Stay on sidewalk)
+                                    // Try -90 or +90
+                                    npc.angle += (Math.random() > 0.5 ? Math.PI / 2 : -Math.PI / 2);
+                                    npc.angle = Math.round(npc.angle / (Math.PI / 2)) * (Math.PI / 2); // Snap
+                                }
+                            } else {
+                                // Valid Sidewalk (1 or 6)
+                                npc.x = nextX;
+                                npc.y = nextY;
+                            }
+                        }
+                    } else if (npc.state === 'wait_to_cross') {
+                        if (npc.stateTimer <= 0) {
+                            // Check for cars nearby in front
+                            let safe = true;
+                            // Check a box ahead
+                            const lookDist = 150;
+                            const cx = npc.x + Math.cos(npc.angle) * lookDist / 2;
+                            const cy = npc.y + Math.sin(npc.angle) * lookDist / 2;
+
+                            for (let c of cars) {
+                                if (Math.hypot(c.x - cx, c.y - cy) < lookDist / 2 + 60) {
+                                    safe = false;
+                                    break;
+                                }
+                            }
+
+                            if (safe) {
+                                npc.state = 'crossing';
+                                npc.stateTimer = 300; // Max time to cross (5s) before giving up?
+                                npc.speed = 2.5; // Walk faster across road
+                            } else {
+                                npc.stateTimer = 30; // Wait more
+                            }
+                        }
+                    } else if (npc.state === 'crossing') {
+                        // Walk Straight
+                        const nextX = npc.x + Math.cos(npc.angle) * npc.speed;
+                        const nextY = npc.y + Math.sin(npc.angle) * npc.speed;
+
+                        // Check if we reached sidewalk
+                        const tx = Math.floor(nextX / TILE_SIZE);
+                        const ty = Math.floor(nextY / TILE_SIZE);
+
+                        let onSidewalk = false;
+                        if (tx >= 0 && tx < mapWidth && ty >= 0 && ty < mapHeight) {
+                            const tile = map[ty][tx];
+                            if (tile === 1 || tile === 6) onSidewalk = true;
+                        }
+
+                        npc.x = nextX;
+                        npc.y = nextY;
+
+                        if (onSidewalk) {
+                            // Made it!
+                            npc.state = 'walk';
+                            npc.speed = 1 + Math.random() * 0.5;
+                            // Align to grid center logic? 
+                            // npc.x = tx * TILE_SIZE + TILE_SIZE / 2;
+                            // npc.y = ty * TILE_SIZE + TILE_SIZE / 2;
+                        } else {
+                            // Still on road or invalid
+                            // Timeout check
+                            if (npc.stateTimer <= 0) {
+                                // Took too long, maybe stuck?
+                                npc.state = 'walk'; // Revert logic
+                                npc.angle += Math.PI; // Go back?
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+
+        // Cars
+        const cars = [];
+        const pickups = [];
+        const CAR_COUNT = 300;
+
+        function updateUI() {
+            document.getElementById('health').textContent = Math.ceil(player.health);
+            document.getElementById('armor').textContent = Math.ceil(player.armor);
+            document.getElementById('wanted').textContent = wantedLevel;
+            document.getElementById('score').textContent = player.score.toLocaleString();
+
+            if (mission.active) {
+                document.getElementById('mission-panel').textContent = `${mission.description} (${mission.current}/${mission.target})`;
+                document.getElementById('mission-panel').style.color = "#ccff00";
+            } else {
+                document.getElementById('mission-panel').textContent = "Answer a Ringing Pay Phone!";
+                document.getElementById('mission-panel').style.color = "#00ccff"; // Blue for phone
+            }
+        }
+
+        function spawnPickup() {
+            let x, y, tileType;
+            let attempts = 0;
+            // Try to find a sidewalk (1 or 6)
+            do {
+                const tx = Math.floor(Math.random() * mapWidth);
+                const ty = Math.floor(Math.random() * mapHeight);
+                tileType = map[ty][tx];
+                x = tx * TILE_SIZE + TILE_SIZE / 2;
+                y = ty * TILE_SIZE + TILE_SIZE / 2;
+                attempts++;
+            } while ((tileType !== 1 && tileType !== 6) && attempts < 50);
+
+            // Pay Phones
+            // Pay Phones (Logic moved to init)
+            // spawnPhones();
+
+            if (attempts < 50) {
+                pickups.push({
+                    x: x,
+                    y: y,
+                    type: (() => {
+                        const r = Math.random();
+                        if (r < 0.4) return 'health';
+                        if (r < 0.8) return 'armor';
+                        return 'dorayaki'; // 20% chance
+                    })(),
+                    floatY: 0,
+                    active: true,
+                    spawnTime: Date.now()
+                });
+            }
+
+
+        }
+
+        function spawnCars() {
+            cars.length = 0;
+            // Spawn some cars
+            for (let i = 0; i < CAR_COUNT; i++) {
+                let tx, ty;
+                let attempts = 0;
+                // Try to find a road
+                do {
+                    tx = Math.floor(Math.random() * mapWidth);
+                    ty = Math.floor(Math.random() * mapHeight);
+                    attempts++;
+                } while (attempts < 100 && (map[ty][tx] !== 0 && map[ty][tx] !== 4));
+
+                if (map[ty][tx] === 0 || map[ty][tx] === 4) {
+                    const isVertical = map[ty][tx] === 0;
+                    const dir = Math.random() > 0.5 ? 1 : -1;
+
+                    let cx = tx * TILE_SIZE + TILE_SIZE / 2;
+                    let cy = ty * TILE_SIZE + TILE_SIZE / 2;
+                    let angle = 0;
+
+                    if (isVertical) {
+                        angle = dir === 1 ? Math.PI / 2 : -Math.PI / 2;
+                    } else {
+                        angle = dir === 1 ? 0 : Math.PI;
+                    }
+
+                    // Apply Lane Offset (Right Hand Traffic)
+                    const laneOffset = 16;
+                    cx += Math.cos(angle + Math.PI / 2) * laneOffset;
+                    cy += Math.sin(angle + Math.PI / 2) * laneOffset;
+
+                    cars.push({
+                        x: cx,
+                        y: cy,
+                        type: (() => {
+                            const r = Math.random();
+                            if (r < 0.15) return 'car1';
+                            if (r < 0.3) return 'car2';
+                            if (r < 0.5) return 'car_blue';
+                            if (r < 0.7) return 'car_green';
+                            if (r < 0.9) return 'car_yellow';
+                            return 'car';
+                        })(),
+                        angle: angle,
+                        speed: 2 + Math.random() * 1.5,
+                        driver: 'npc',
+                        width: 48,
+                        height: 96,
+                        engine: playSound('engine', true, 0.0),
+                        stuckTimer: 0, // Track if car is stuck
+                        turnCooldown: 0,
+                        collisionStress: 0,
+                        reversingTimer: 0,
+                        health: 100,
+                        stolen: false // Track if this car has been stolen before
+                    });
+                }
+            }
+        }
+
+        // Bullets
+        const bullets = [];
+
+        // Pay Phones
+        const phones = [];
+
+        function spawnPhones() {
+            phones.length = 0;
+            // Spawn random pay phones on sidewalks
+            for (let i = 0; i < 10; i++) { // 10 Phones
+                let tx, ty;
+                let attempts = 0;
+                do {
+                    tx = Math.floor(Math.random() * mapWidth);
+                    ty = Math.floor(Math.random() * mapHeight);
+                    attempts++;
+                } while (attempts < 100 && (map[ty][tx] !== 1 && map[ty][tx] !== 6)); // Must be sidewalk
+
+                if (map[ty][tx] === 1 || map[ty][tx] === 6) {
+                    phones.push({
+                        x: tx * TILE_SIZE + TILE_SIZE / 2,
+                        y: ty * TILE_SIZE + TILE_SIZE / 2,
+                        ringing: false,
+                        audio: null
+                    });
+                }
+            }
+        }
+
+        function updatePhones() {
+            if (mission.active) {
+                // Ensure all phones are silent
+                phones.forEach(p => {
+                    if (p.audio) {
+                        p.audio.pause();
+                        p.audio = null;
+                    }
+                });
+                return;
+            }
+
+            phones.forEach(p => {
+                // Audio Logic (Spatial)
+                const dist = Math.hypot(player.x - p.x, player.y - p.y);
+                const maxDist = 800; // Increased range
+
+                if (dist < maxDist) {
+                    if (!p.audio) {
+                        p.audio = playSound('phone_ring', p, true, 0.1); // Start with some volume
+                    }
+                    if (p.audio) {
+                        // Volume based on distance (Linear but with a floor)
+                        let vol = Math.max(0, (1 - dist / maxDist));
+                        // Ensure it's at least 10% if within 600px
+                        if (dist < 600) vol = Math.max(0.1, vol);
+
+                        p.audio.volume = vol;
+                        if (p.audio.paused) {
+                            const pProm = p.audio.play();
+                            if (pProm !== undefined) {
+                                pProm.catch(e => { });
+                            }
+                        }
+                    }
+                } else {
+                    if (p.audio) {
+                        p.audio.pause();
+                        p.audio = null;
+                    }
+                }
+
+                // Check Collision (interaction)
+                if (dist < 30) {
+                    // Start Mission
+                    playSound('gadget'); // Ring answer sound
+
+                    // Stop this phone's ring immediately
+                    if (p.audio) {
+                        p.audio.pause();
+                        p.audio = null;
+                    }
+
+                    startMission();
+                }
+            });
+        }
+
+        function updateDropOff() {
+            if (!mission.active || mission.type !== 'steal' || !mission.dropOff) return;
+
+            if (player.inCar) {
+                const d = Math.hypot(player.x - mission.dropOff.x, player.y - mission.dropOff.y);
+                if (d < 80) {
+                    // Delivered!
+                    playSound('accomplished'); // Success sound
+                    spawnFloatingText(player.x, player.y, "Delivered!", "#00ff00");
+
+                    // Remove car (it's sold)
+                    player.inCar = false;
+                    player.currentCarStolen = false;
+                    if (engineSound) {
+                        engineSound.pause();
+                        engineSound = null;
+                    }
+
+                    // No car left in cars array because it was spliced out when entered
+
+                    // Eject player slightly
+                    player.x += 40;
+
+                    // Progress Mission
+                    checkMission('steal');
+
+                    // New Drop-off location for next car
+                    let dx, dy;
+                    do {
+                        dx = Math.floor(Math.random() * (mapWidth / GRID_SIZE)) * GRID_SIZE;
+                        dy = Math.floor(Math.random() * (mapHeight / GRID_SIZE)) * GRID_SIZE;
+                    } while (Math.hypot(dx * TILE_SIZE - player.x, dy * TILE_SIZE - player.y) < 500);
+
+                    mission.dropOff = {
+                        x: dx * TILE_SIZE + TILE_SIZE / 2,
+                        y: dy * TILE_SIZE + TILE_SIZE / 2
+                    };
+                }
+            }
+        }
+
+
+
+        function spawnPoliceCar() {
+            // Find a road tile near the player (but not on screen preferably, or at edge)
+            const range = 500;
+            let attempts = 0;
+            while (attempts < 20) {
+                let sx, sy, angle;
+
+                angle = Math.random() * Math.PI * 2;
+                const dist = 300 + Math.random() * 200;
+                sx = player.x + Math.cos(angle) * dist;
+                sy = player.y + Math.sin(angle) * dist;
+
+                const tx = Math.floor(sx / TILE_SIZE);
+                const ty = Math.floor(sy / TILE_SIZE);
+
+                if (tx >= 0 && tx < mapWidth && ty >= 0 && ty < mapHeight) {
+                    // Check logic for 'Road' (0 or 4 or 5)
+                    const tile = map[ty][tx];
+                    if (tile === 0 || tile === 4 || tile === 5) {
+                        // Found valid spot
+                        cars.push({
+                            x: sx,
+                            y: sy,
+                            type: 'police_car',
+                            angle: angle + Math.PI, // Face player roughly?
+                            speed: 0,
+                            driver: 'police',
+                            width: 48, // Standard car size
+                            height: 96,
+                            engine: playSound('engine', { x: sx, y: sy }, true, 0.1),
+                            siren: playSound('siren', { x: sx, y: sy }, true, 1.0), // Siren init
+                            stuckTimer: 0,
+                            turnCooldown: 0,
+                            health: 150, // Tougher
+                            collisionStress: 0, // NEW: Track repeated collisions
+                            reversingTimer: 0   // NEW: Frames to stay in reverse mode
+                        });
+                        break;
+                    }
+                }
+                attempts++;
+            }
+        }
+
+
+
+        const bloodStains = [];
+        const skidMarks = []; // Array for skid marks
+
+        function updateTraffic() {
+            const screenHalfW = width / (2 * CAM_ZOOM);
+            const screenHalfH = height / (2 * CAM_ZOOM);
+
+            const COLLISION_STRESS_THRESHOLD = 5; // Hits before forcing reverse
+            const REVERSE_DURATION = 60; // Frames to reverse (~1 sec)
+
+            cars.forEach(car => {
+                // Audio updates
+                if (car.engine) {
+                    const dx = Math.abs(car.x - player.x);
+                    const dy = Math.abs(car.y - player.y);
+
+                    const dist = Math.hypot(car.x - player.x, car.y - player.y);
+                    const maxDist = 300; // Unified Audio Range
+
+                    if (dist < maxDist) {
+                        // Linear falloff
+                        const vol = Math.max(0, (1 - dist / maxDist) * 0.3); // Max vol 0.3
+                        car.engine.volume = vol;
+
+                        // Pitch based on speed
+                        const speedRatio = Math.abs(car.speed) / 4;
+                        car.engine.playbackRate = 0.8 + speedRatio * 0.4;
+
+                        if (car.engine.paused) car.engine.play().catch(e => { });
+                    } else {
+                        car.engine.volume = 0;
+                    }
+                }
+
+                // Decay Collision Stress
+                if (car.collisionStress > 0) car.collisionStress -= 0.05;
+
+                // Handle Reversing Mode (Override AI)
+                if (car.reversingTimer > 0) {
+                    car.reversingTimer--;
+                    car.speed = -2.0; // Force reverse
+
+                    // Simple steering adjustment while reversing to unstick
+                    // Randomly turn slightly to break symmetry
+                    if (car.reversingTimer % 20 === 0) {
+                        const turn = (Math.random() - 0.5) * 0.5;
+                        car.angle += turn;
+                    }
+
+                    // Move backward
+                    car.x += Math.cos(car.angle) * car.speed;
+                    car.y += Math.sin(car.angle) * car.speed;
+
+                    // Update Audio Volume (keep engine running)
+                    // (Already handled above)
+
+                    // Skip normal AI logic
+                    return;
+                }
+
+                // ... traffic logic ...
+                if (car.driver === 'police') {
+                    if (wantedLevel > 0) {
+                        // Police AI: Chase Player
+                        const dx = player.x - car.x;
+                        const dy = player.y - car.y;
+                        const dist = Math.hypot(dx, dy);
+
+                        if (dist < 600) { // Chase range
+                            const targetAngle = Math.atan2(dy, dx);
+
+                            // Smooth turn
+                            let diff = targetAngle - car.angle;
+                            while (diff < -Math.PI) diff += Math.PI * 2;
+                            while (diff > Math.PI) diff -= Math.PI * 2;
+
+                            if (diff > 0.1) car.angle += 0.05;
+                            else if (diff < -0.1) car.angle -= 0.05;
+
+                            // Accelerate
+                            if (car.speed < 6.5) car.speed += 0.1;
+                        } else {
+                            // Idle / Wander if lost
+                            car.speed *= 0.95;
+                        }
+
+                        // Move forward
+                        // Obstacle Avoidance (Whiskers)
+                        // Cast lines ahead to detect buildings
+                        const lookAhead = 60;
+                        const whiskerAngle = 0.5; // ~30 degrees
+
+                        let avoidTurn = 0;
+
+                        // Center Whisker
+                        const cx = car.x + Math.cos(car.angle) * lookAhead;
+                        const cy = car.y + Math.sin(car.angle) * lookAhead;
+                        const ctx = Math.floor(cx / TILE_SIZE);
+                        const cty = Math.floor(cy / TILE_SIZE);
+
+                        if (map[cty] && map[cty][ctx] === 3) {
+                            // Hit ahead! Brake hard and turn random
+                            car.speed *= 0.5;
+                            avoidTurn = Math.random() > 0.5 ? 0.1 : -0.1;
+                        }
+
+                        // Left Whisker
+                        const lx = car.x + Math.cos(car.angle - whiskerAngle) * lookAhead;
+                        const ly = car.y + Math.sin(car.angle - whiskerAngle) * lookAhead;
+                        const ltx = Math.floor(lx / TILE_SIZE);
+                        const lty = Math.floor(ly / TILE_SIZE);
+
+                        if (map[lty] && map[lty][ltx] === 3) {
+                            avoidTurn += 0.08; // Turn Right
+                        }
+
+                        // Right Whisker
+                        const rx = car.x + Math.cos(car.angle + whiskerAngle) * lookAhead;
+                        const ry = car.y + Math.sin(car.angle + whiskerAngle) * lookAhead;
+                        const rtx = Math.floor(rx / TILE_SIZE);
+                        const rty = Math.floor(ry / TILE_SIZE);
+
+                        if (map[rty] && map[rty][rtx] === 3) {
+                            avoidTurn -= 0.08; // Turn Left
+                        }
+
+                        // Apply Avoidance
+                        if (avoidTurn !== 0) {
+                            car.angle += avoidTurn;
+                            car.speed *= 0.9; // Slow down when avoiding
+                        }
+
+                        // Move forward
+                        const nextX = car.x + Math.cos(car.angle) * car.speed;
+                        const nextY = car.y + Math.sin(car.angle) * car.speed;
+
+                        // Check Collision with Buildings (Tile 3)
+                        const tx = Math.floor(nextX / TILE_SIZE);
+                        const ty = Math.floor(nextY / TILE_SIZE);
+
+                        if (tx >= 0 && tx < mapWidth && ty >= 0 && ty < mapHeight) {
+                            if (map[ty][tx] === 3) {
+                                // Hit building: Stop and maybe back up?
+                                car.speed = -1; // Bounce back
+                            } else {
+                                car.x = nextX;
+                                car.y = nextY;
+                            }
+                        } else {
+                            // Out of bounds -> Stop
+                            car.speed = -1;
+                        }
+
+                        // Skip normal traffic tile checks for now (simple chase physics)
+                        // But still collide with buildings
+                        return; // Skip normal traffic logic
+                    }
+                } // Close police block
+
+                if (car.driver !== 'npc' && car.driver !== 'police') return;
+
+                // Stuck Detection
+                if (Math.abs(car.speed) < 0.5) {
+                    car.stuckTimer++;
+                    if (car.stuckTimer > 180) { // 3 seconds at 60fps
+                        // Turn Around
+                        car.angle += Math.PI;
+                        car.speed = 2; // Jumpstart
+                        car.stuckTimer = 0;
+
+                        // Switch Lane
+                        const laneOffset = 16;
+                        const currentTx = Math.floor(car.x / TILE_SIZE);
+                        const currentTy = Math.floor(car.y / TILE_SIZE);
+                        const cx = currentTx * TILE_SIZE + TILE_SIZE / 2;
+                        const cy = currentTy * TILE_SIZE + TILE_SIZE / 2;
+
+                        const offX = Math.cos(car.angle + Math.PI / 2) * laneOffset;
+                        const offY = Math.sin(car.angle + Math.PI / 2) * laneOffset;
+
+                        car.x = cx + offX;
+                        car.y = cy + offY;
+                    }
+                } else {
+                    car.stuckTimer = 0;
+                }
+
+                // Update Siren Sound (Police Only)
+                if (car.siren) {
+                    const dist = Math.hypot(player.x - car.x, player.y - car.y);
+                    const maxDist = 600;
+                    if (dist > maxDist) {
+                        car.siren.volume = 0;
+                    } else {
+                        car.siren.volume = (1 - dist / maxDist) * 0.8; // Max 0.8 vol for siren
+                    }
+                }
+
+                // Move forward
+                car.x += Math.cos(car.angle) * car.speed;
+                car.y += Math.sin(car.angle) * car.speed;
+
+                // Speed Recovery (if bumped backwards)
+                if (car.speed < 2.0 && car.driver === 'npc') {
+                    car.speed += 0.05; // Accelerate back to normal
+                }
+
+                // Lane Recovery (Steer back to center of lane)
+                // Only if moving forward and not turning
+                if (car.speed > 0 && car.turnCooldown === 0) {
+                    const ctx = Math.floor(car.x / TILE_SIZE);
+                    const cty = Math.floor(car.y / TILE_SIZE);
+
+                    if (ctx >= 0 && ctx < mapWidth && cty >= 0 && cty < mapHeight) {
+                        const tile = map[cty][ctx];
+                        const centerX = ctx * TILE_SIZE + TILE_SIZE / 2;
+                        const centerY = cty * TILE_SIZE + TILE_SIZE / 2;
+                        const laneOffset = 16;
+
+                        let targetX = car.x;
+                        let targetY = car.y;
+                        let hasTarget = false;
+
+                        // Determine Target Lane Center
+                        if (tile === 0) { // Vertical Road
+                            const sin = Math.sin(car.angle);
+                            // Look ahead simply by using current Y + large number? 
+                            // Actually just need X alignment.
+                            // Target Y is just "ahead".
+                            targetY = car.y + Math.sin(car.angle) * 50;
+
+                            if (sin > 0.7) { // Down
+                                targetX = centerX + laneOffset;
+                                hasTarget = true;
+                            } else if (sin < -0.7) { // Up
+                                targetX = centerX - laneOffset;
+                                hasTarget = true;
+                            }
+                        } else if (tile === 4) { // Horizontal Road
+                            const cos = Math.cos(car.angle);
+                            targetX = car.x + Math.cos(car.angle) * 50;
+
+                            if (cos > 0.7) { // Right
+                                targetY = centerY + laneOffset;
+                                hasTarget = true;
+                            } else if (cos < -0.7) { // Left
+                                targetY = centerY - laneOffset;
+                                hasTarget = true;
+                            }
+                        }
+
+                        if (hasTarget) {
+                            // Robust Steering using Cross Product
+                            // vector_to_target = (dx, dy)
+                            // car_vector = (vx, vy) aka (cos, sin)
+                            // cp = vx*dy - vy*dx
+
+                            const dx = targetX - car.x;
+                            const dy = targetY - car.y;
+
+                            const vx = Math.cos(car.angle);
+                            const vy = Math.sin(car.angle);
+
+                            // 2D Cross Product
+                            const cp = vx * dy - vy * dx;
+
+                            // If cp > 0, target is to the Right -> Turn Right (+Angle)
+                            // If cp < 0, target is to the Left -> Turn Left (-Angle)
+                            // But coordinate system matters.
+                            // Canvas: X Right, Y Down.
+                            // Angle 0 (Right). dx=0, dy=10 (Down/Right side). vx=1, vy=0.
+                            // cp = 1*10 - 0 = 10 > 0.
+                            // Turning Right (Angle 0 -> PI/2) is +Angle. 
+                            // So cp > 0 => Angle +=.
+
+                            const steerStrength = 0.05; // Slightly stronger
+                            if (Math.abs(cp) > 5) { // Deadzone
+                                car.angle += (cp > 0 ? steerStrength : -steerStrength);
+                            }
+                        }
+                    }
+                }
+
+
+
+                // ... (rest of traffic AI) ...
+                if (car.turnCooldown > 0) car.turnCooldown--;
+
+                // Check Current Tile for Intersection Logic (Turn Decision)
+                const ctx = Math.floor(car.x / TILE_SIZE);
+                const cty = Math.floor(car.y / TILE_SIZE);
+
+                if (ctx >= 0 && ctx < mapWidth && cty >= 0 && cty < mapHeight) {
+                    const currentTile = map[cty][ctx];
+                    if (currentTile === 5 && car.turnCooldown === 0) { // Intersection
+                        const centerX = ctx * TILE_SIZE + TILE_SIZE / 2;
+                        const centerY = cty * TILE_SIZE + TILE_SIZE / 2;
+                        const dist = Math.hypot(car.x - centerX, car.y - centerY);
+
+                        // Turn if near center
+                        if (dist < 20) {
+                            const turn = Math.random();
+                            const laneOffset = 16;
+
+                            if (turn < 0.25) {
+                                // Turn Left
+                                car.angle -= Math.PI / 2;
+                                car.turnCooldown = 60;
+
+                                // Snap to New Lane Center
+                                // Calculate vector to right of NEW angle
+                                const offX = Math.cos(car.angle + Math.PI / 2) * laneOffset;
+                                const offY = Math.sin(car.angle + Math.PI / 2) * laneOffset;
+
+                                car.x = centerX + offX;
+                                car.y = centerY + offY;
+
+                            } else if (turn < 0.5) {
+                                // Turn Right
+                                car.angle += Math.PI / 2;
+                                car.turnCooldown = 60;
+
+                                const offX = Math.cos(car.angle + Math.PI / 2) * laneOffset;
+                                const offY = Math.sin(car.angle + Math.PI / 2) * laneOffset;
+
+                                car.x = centerX + offX;
+                                car.y = centerY + offY;
+                            } else {
+                                // Straight
+                                car.turnCooldown = 60; // Don't turn again in this intersection
+                            }
+
+                            // Normalize Angle
+                            car.angle = Math.round(car.angle / (Math.PI / 2)) * (Math.PI / 2);
+                        }
+                    }
+                }
+
+                // Lookahead for Map Bounds / Dead Ends (existing logic modified)
+                const lookDist = 40;
+                const lx = car.x + Math.cos(car.angle) * lookDist;
+                const ly = car.y + Math.sin(car.angle) * lookDist;
+                // ... bounds check ...
+                const tx = Math.floor(lx / TILE_SIZE);
+                const ty = Math.floor(ly / TILE_SIZE);
+
+                if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) {
+                    car.angle += Math.PI;
+
+                    // Switch Lane
+                    const laneOffset = 16;
+                    const currentTx = Math.floor(car.x / TILE_SIZE);
+                    const currentTy = Math.floor(car.y / TILE_SIZE);
+                    const cx = currentTx * TILE_SIZE + TILE_SIZE / 2;
+                    const cy = currentTy * TILE_SIZE + TILE_SIZE / 2;
+
+                    const offX = Math.cos(car.angle + Math.PI / 2) * laneOffset;
+                    const offY = Math.sin(car.angle + Math.PI / 2) * laneOffset;
+
+                    car.x = cx + offX;
+                    car.y = cy + offY;
+                    return;
+                }
+
+                const tile = map[ty][tx];
+                // Remove tile===5 check here as handled by current tile logic
+                if (tile === 3 || tile === 2 || tile === 1 || tile === 6) {
+                    car.speed = Math.abs(car.speed); // Ensure positive speed
+                    car.angle += Math.PI; // Turn around
+
+                    // Switch to Right Lane
+                    const laneOffset = 16;
+                    // We need to base this on the TILE center we are bouncing off of? 
+                    // No, base it on current tile we are IN. 
+                    // Actually, we are looking AHEAD at `tx, ty`. We are currently at `ctx, cty` (calculated earlier).
+                    // Let's snap relative to current position's tile center to be safe.
+                    const currentTx = Math.floor(car.x / TILE_SIZE);
+                    const currentTy = Math.floor(car.y / TILE_SIZE);
+                    const cx = currentTx * TILE_SIZE + TILE_SIZE / 2;
+                    const cy = currentTy * TILE_SIZE + TILE_SIZE / 2;
+
+                    const offX = Math.cos(car.angle + Math.PI / 2) * laneOffset;
+                    const offY = Math.sin(car.angle + Math.PI / 2) * laneOffset;
+
+                    car.x = cx + offX;
+                    car.y = cy + offY;
+
+                    // Add Collision Stress (Building Hit)
+                    car.collisionStress += 2;
+                    if (car.collisionStress > COLLISION_STRESS_THRESHOLD) {
+                        car.reversingTimer = REVERSE_DURATION;
+                        car.collisionStress = 0;
+                    }
+                }
+
+                // Car-Car Collision
+                for (let other of cars) {
+                    if (other !== car) {
+                        const dx = car.x - other.x;
+                        const dy = car.y - other.y;
+                        const d = Math.hypot(dx, dy);
+                        const minDist = 30; // Reduced for 2-way traffic passing
+
+                        if (d < minDist) {
+                            // Collision!
+                            // Resolve overlap
+                            const overlap = minDist - d;
+                            const angle = Math.atan2(dy, dx);
+
+                            const moveX = Math.cos(angle) * overlap * 0.5;
+                            const moveY = Math.sin(angle) * overlap * 0.5;
+
+                            car.x += moveX;
+                            car.y += moveY;
+                            other.x -= moveX;
+                            other.y -= moveY;
+
+                            // Bounce Back (Reverse)
+                            // If moving towards each other, reverse speed
+                            // Simple: Set speed to negative (reverse)
+                            // Only if colliding "hard"
+                            if (Math.abs(car.speed) > 0.5 || Math.abs(other.speed) > 0.5) {
+                                car.speed = -1.5; // Bounce back speed
+                                other.speed = -1.5;
+
+                                // Add random angle noise to prevent perfect lock
+                                car.angle += (Math.random() - 0.5) * 0.2;
+                                other.angle += (Math.random() - 0.5) * 0.2;
+
+                                // Add Collision Stress
+                                car.collisionStress += 2;
+                                other.collisionStress += 2;
+
+                                // Trigger Reverse Mode if Stressed
+                                if (car.collisionStress > COLLISION_STRESS_THRESHOLD) {
+                                    car.reversingTimer = REVERSE_DURATION;
+                                    car.collisionStress = 0; // Reset
+                                }
+                                if (other.collisionStress > COLLISION_STRESS_THRESHOLD) {
+                                    other.reversingTimer = REVERSE_DURATION;
+                                    other.collisionStress = 0; // Reset
+                                }
+                            }
+
+                            // Damage on high speed impact
+                            // (Simplified: just sound for now)
+                            playSound('brake', { x: car.x, y: car.y }, false, 0.5); // Screech/Crash noise
+                        }
+                    }
+                }
+
+            });
+
+            // Cleanup dead cars from collision loop (tricky during iteration, handle in separate pass or keep simple)
+            for (let i = cars.length - 1; i >= 0; i--) {
+                if (cars[i].health <= 0) explodeCar(i);
+            }
+
+            // Player Car Collision with Traffic
+            if (player.inCar) {
+                cars.forEach(car => {
+                    const dx = player.x - car.x;
+                    const dy = player.y - car.y;
+                    const d = Math.hypot(dx, dy);
+                    const minDist = 60;
+
+                    if (d < minDist) {
+                        // Collision!
+                        const overlap = minDist - d;
+                        const angle = Math.atan2(dy, dx);
+
+                        // Push player and car apart
+                        // Player is usually lighter/controllable, but let's split it
+                        const moveX = Math.cos(angle) * overlap * 0.5;
+                        const moveY = Math.sin(angle) * overlap * 0.5;
+
+                        player.x += moveX;
+                        player.y += moveY;
+                        car.x -= moveX;
+                        car.y -= moveY;
+
+                        player.speed *= 0.5;
+                        car.speed *= 0.5;
+
+                        // Sound effect?
+                        // if( Math.abs(player.speed) > 2) playSound('brake', false, 0.5); 
+                    }
+                });
+            }
+        }
+
+        function checkPedestrianCollisions() {
+            // Check Player Car vs NPCs
+            if (player.inCar) {
+                for (let i = npcs.length - 1; i >= 0; i--) {
+                    const npc = npcs[i];
+                    const d = Math.hypot(player.x - npc.x, player.y - npc.y);
+                    if (d < 40 && Math.abs(player.speed) > 1) {
+                        killNPC(i, 'player');
+                    }
+                }
+            }
+
+            // Check Traffic Cars vs NPCs
+            const screenHalfW = width / (2 * CAM_ZOOM);
+            const screenHalfH = height / (2 * CAM_ZOOM);
+            const cullX = screenHalfW + 100; // Slightly larger than screen
+            const cullY = screenHalfH + 100;
+
+            cars.forEach(car => {
+                if (Math.abs(car.speed) > 1) {
+                    // Optimization: Skip collision checks for off-screen cars
+                    if (Math.abs(car.x - player.x) > cullX || Math.abs(car.y - player.y) > cullY) return;
+
+                    // 1. Check vs NPCs
+                    for (let i = npcs.length - 1; i >= 0; i--) {
+                        const npc = npcs[i];
+                        if (Math.hypot(car.x - npc.x, car.y - npc.y) < 40) {
+                            killNPC(i, 'traffic');
+                        }
+                    }
+
+                    // 2. Check vs Player (On Foot)
+                    if (!player.inCar) {
+                        const d = Math.hypot(car.x - player.x, car.y - player.y);
+                        if (d < 40) {
+                            // Hit by car!
+                            // Damage based on speed
+                            const damage = Math.floor(Math.abs(car.speed) * 4);
+                            if (damage > 0) {
+                                // Armor Logic
+                                let damageToTake = damage;
+                                if (player.armor > 0) {
+                                    let absorb = Math.min(player.armor, damageToTake);
+                                    player.armor -= absorb;
+                                    damageToTake -= absorb;
+                                }
+                                player.health -= damageToTake;
+                                updateUI();
+                                if (player.health < 0) player.health = 0;
+
+                                // Update UI
+                                // UI Updated by updateUI() above
+
+                                // Knockback
+                                const angle = Math.atan2(player.y - car.y, player.x - car.x);
+                                player.x += Math.cos(angle) * 15;
+                                player.y += Math.sin(angle) * 15;
+
+                                // Sound
+                                playSound('brake', { x: car.x, y: car.y }, false, 0.5); // Impact sound (using brake/crash for now)
+
+                                // Check Death
+                                if (player.health <= 0) {
+                                    handlePlayerDeath();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        let lastSplashTime = 0;
+
+        function explodeCar(index, killer) {
+            const car = cars[index];
+            if (!car) return;
+
+            // Increase Wanted Level if Player destroyed it
+            if (killer === 'player') {
+                wantedLevel += 1; // Destroying property
+                if (wantedLevel > 5) wantedLevel = 5;
+                document.getElementById('wanted').textContent = wantedLevel;
+            }
+
+            // Sound
+            playSound('explosion', { x: car.x, y: car.y });
+
+            // 1. Permanent Crater (Visual)
+            bloodStains.push({
+                x: car.x,
+                y: car.y,
+                angle: Math.random() * Math.PI * 2,
+                size: 80, // Size of crater
+                alpha: 1.0,
+                type: 'crater' // Special type
+            });
+
+            // 2. Explosion Flash/Animation (Visual)
+            // Using a separate array for explosions might be cleaner but reusing bloodStains with type works too
+            bloodStains.push({
+                x: car.x,
+                y: car.y,
+                angle: 0,
+                size: 120,
+                alpha: 1.0,
+                type: 'explosion', // Animated type
+                life: 30 // Frames to live
+            });
+
+            // Remove car
+            if (car.engine) {
+                car.engine.pause();
+                car.engine = null;
+            }
+            if (car.siren) {
+                car.siren.pause();
+                car.siren = null;
+            }
+            cars.splice(index, 1);
+
+            // Respawn later
+            setTimeout(() => {
+                if (cars.length < CAR_COUNT) {
+                    spawnCarsSingle();
+                }
+            }, 5000);
+        }
+
+        // Helper to spawn one car
+        function spawnCarsSingle() {
+            let tx, ty;
+            let attempts = 0;
+            do {
+                tx = Math.floor(Math.random() * mapWidth);
+                ty = Math.floor(Math.random() * mapHeight);
+                attempts++;
+            } while (attempts < 100 && (map[ty][tx] !== 0 && map[ty][tx] !== 4));
+
+            if (map[ty][tx] === 0 || map[ty][tx] === 4) {
+                // ... (simplified spawn logic copy/paste or refactor)
+                // Let's just do simple valid spawn
+                const isVertical = map[ty][tx] === 0;
+                const dir = Math.random() > 0.5 ? 1 : -1;
+                let cx = tx * TILE_SIZE + TILE_SIZE / 2;
+                let cy = ty * TILE_SIZE + TILE_SIZE / 2;
+                let angle = 0;
+                if (isVertical) { cx += dir * 16; angle = dir === 1 ? Math.PI / 2 : -Math.PI / 2; }
+                else { cy += dir * 16; angle = dir === 1 ? 0 : Math.PI; }
+
+                cars.push({
+                    x: cx,
+                    y: cy,
+                    type: Math.random() > 0.5 ? 'car1' : 'car2',
+                    angle: angle,
+                    speed: 2 + Math.random() * 1.5,
+                    driver: 'npc',
+                    width: 48,
+                    height: 96,
+                    engine: playSound('engine', { x: cx, y: cy }, true, 0.1),
+                    siren: playSound('siren', { x: cx, y: cy }, true, 1.0), // Siren init at max vol to ensure start
+                    stuckTimer: 0,
+                    health: 150, // Tougher
+                    collisionStress: 0,
+                    reversingTimer: 0,
+                    stolen: false
+                });
+            }
+        }
+
+        function killNPC(index, killer) {
+            const npc = npcs[index];
+
+            // Circular Falloff (Simple & Robust)
+            // Existing logic had custom distance check for splash. 
+            // We can now use new playSound to handle it if we want, 
+            // OR keep this custom logic if it was specifically tuning the splash.
+            // But let's unify it.
+
+            const now = Date.now();
+            if (now - lastSplashTime > 150) {
+                // playSound handles distance check now.
+                // Pass {x,y}
+                playSound('splash', { x: npc.x, y: npc.y }, false, 1.0);
+                lastSplashTime = now;
+            }
+
+            // Add Blood Stain
+            bloodStains.push({
+                x: npc.x,
+                y: npc.y,
+                angle: Math.random() * Math.PI * 2,
+                size: 30 + Math.random() * 20,
+                alpha: 1.0,
+                color: '#cc0000',
+                life: 600 // 10 seconds
+            });
+
+
+            // Increase Wanted Level
+            if (killer === 'player') {
+                wantedLevel++;
+                if (npc.type === 'police') wantedLevel++; // Double penalty for cop killer
+
+                if (wantedLevel > 5) wantedLevel = 5;
+                document.getElementById('wanted').textContent = wantedLevel;
+
+                if (npc.type === 'police') wantedLevel++; // Double penalty for cop killer
+
+                if (wantedLevel > 5) wantedLevel = 5;
+                document.getElementById('wanted').textContent = wantedLevel;
+
+                // Spawn Police Reinforcements? (Handled in loop logic for now)
+            }
+
+            // Reward for killing NPC (Robbing)
+            if (killer === 'player') {
+                // Randomize Reward: 50 - 1500, rounded to 10
+                const reward = Math.floor((Math.random() * 145 + 5)) * 10;
+                player.score += reward;
+                spawnFloatingText(npc.x, npc.y, "+¥" + reward.toLocaleString(), "gold");
+                if (npc.isMissionTarget) {
+                    checkMission('kill');
+                }
+                updateUI();
+            }
+
+            npcs.splice(index, 1);
+
+            // Respawn NPC elsewhere
+            setTimeout(() => {
+                // Let's simplified: maintain population
+                if (npcs.length < NPC_COUNT) {
+                    // Add one new npc
+                    let tx, ty;
+                    let attempts = 0;
+                    do {
+                        tx = Math.floor(Math.random() * mapWidth);
+                        ty = Math.floor(Math.random() * mapHeight);
+                        attempts++;
+                    } while (attempts < 100 && (map[ty][tx] !== 1 && map[ty][tx] !== 6));
+
+                    if (map[ty][tx] === 1 || map[ty][tx] === 6) {
+                        npcs.push({
+                            x: tx * TILE_SIZE + TILE_SIZE / 2,
+                            y: ty * TILE_SIZE + TILE_SIZE / 2,
+                            type: Math.random() > 0.5 ? 'enemy1' : 'enemy2',
+                            angle: Math.random() * Math.PI * 2,
+                            speed: 0,
+                            state: 'idle',
+                            stateTimer: Math.random() * 100,
+                            width: 40,
+                            height: 40
+                        });
+                    }
+                }
+            }, 5000);
+        }
+
+        function updateBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.x += Math.cos(b.angle) * b.speed;
+                b.y += Math.sin(b.angle) * b.speed;
+                b.life--;
+
+                if (b.life <= 0) {
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Collision with Walls
+                const tx = Math.floor(b.x / TILE_SIZE);
+                const ty = Math.floor(b.y / TILE_SIZE);
+                if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight || map[ty][tx] === 3) {
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                if (b.owner === 'player') {
+                    // Collision with NPCs
+                    for (let j = npcs.length - 1; j >= 0; j--) {
+                        const npc = npcs[j];
+                        const d = Math.hypot(b.x - npc.x, b.y - npc.y);
+                        if (d < 20) {
+                            killNPC(j, 'player');
+                            bullets.splice(i, 1);
+                            break;
+                        }
+                    }
+                } else if (b.owner === 'enemy') {
+                    // Collision with Player
+                    const d = Math.hypot(b.x - player.x, b.y - player.y);
+                    if (d < 20) {
+                        // Super Mode Invincibility
+                        if (player.superModeTimer > 0) {
+                            bullets.splice(i, 1);
+                            playSound('ricochet'); // Bounce off
+                            return;
+                        }
+
+                        // Hit Player
+                        // Armor Logic for Car Hit
+                        let crashDmg = 10;
+                        if (player.armor > 0) {
+                            let absorb = Math.min(player.armor, crashDmg);
+                            player.armor -= absorb;
+                            crashDmg -= absorb;
+                        }
+                        player.health -= crashDmg;
+                        if (player.health < 0) player.health = 0;
+                        updateUI();
+
+                        // Sound/Visuals
+                        // playSound('pain', {x: player.x, y: player.y}); 
+                        bullets.splice(i, 1);
+
+                        // Check Death
+                        if (player.health <= 0) {
+                            handlePlayerDeath();
+                        }
+                        continue;
+                    }
+                }
+
+                // Collision with Cars (Both player and enemy bullets hit cars)
+                for (let k = 0; k < cars.length; k++) {
+                    const car = cars[k];
+                    const d = Math.hypot(b.x - car.x, b.y - car.y);
+                    if (d < 40) { // Simple circle for car
+                        bullets.splice(i, 1);
+
+                        // Damage Car
+                        car.health -= 10;
+                        if (car.health <= 0) {
+                            explodeCar(k, b.owner);
+                        } else {
+                            // Ding sound?
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        function updatePickups() {
+            const now = Date.now();
+            // console.log("updatePickups running, count: " + pickups.length); 
+
+            for (let i = pickups.length - 1; i >= 0; i--) {
+                const p = pickups[i];
+
+                // Spawn Protection (2 seconds) to ensure visibility
+                if (p.spawnTime && now - p.spawnTime < 2000) continue;
+
+                const d = Math.hypot(player.x - p.x, player.y - p.y);
+                if (d < 30) {
+                    // console.log("Collision with pickup " + p.type);
+                    let collected = false;
+
+
+                    if (p.type === 'health') {
+                        if (player.health < player.maxHealth) {
+                            player.health = Math.min(player.health + 50, player.maxHealth);
+                            playSound('gadget', { x: p.x, y: p.y });
+                            collected = true;
+                        }
+                    } else if (p.type === 'armor') {
+                        if (player.armor < player.maxArmor) {
+                            player.armor = Math.min(player.armor + 50, player.maxArmor);
+                            playSound('gadget', { x: p.x, y: p.y });
+                            collected = true;
+                        }
+                    } else if (p.type === 'machinegun') {
+                        player.hasMachineGun = true;
+                        player.weapon = 'machinegun';
+                        playSound('gadget');
+                        player.weapon = 'machinegun';
+                        playSound('gadget');
+                        collected = true;
+                    } else if (p.type === 'dorayaki') {
+                        player.health = player.maxHealth;
+                        player.armor = player.maxArmor;
+                        player.superModeTimer = 600; // 10 seconds of glory
+                        playSound('gadget', { x: p.x, y: p.y });
+                        spawnFloatingText(player.x, player.y, "SUPER DORAEMON!", "gold");
+                        collected = true;
+                    }
+
+                    if (collected) {
+                        pickups.splice(i, 1);
+                        updateUI();
+
+
+                        // Respawn
+                        const { x, y, type } = p;
+                        const respawnTime = (type === 'health' || type === 'armor') ? 60000 : 10000;
+                        // const respawnTime = 5000; // Debug: 5 seconds for easy testing
+
+
+                        setTimeout(() => {
+                            pickups.push({
+                                x: x,
+                                y: y,
+                                type: type,
+                                floatY: 0,
+                                active: true,
+                                spawnTime: Date.now()
+                            });
+                        }, respawnTime);
+                    }
+
+
+
+                }
+            }
+        }
+
+
+        let lastF = false;
+        let lastE = false;
+
+        function useAnywhereDoor() {
+            if (player.inCar) {
+                spawnFloatingText(player.x, player.y, "Exit Car First!", "white");
+                return;
+            }
+            if (player.anywhereDoorCooldown > 0) {
+                spawnFloatingText(player.x, player.y, "Recharging...", "gray");
+                return;
+            }
+
+            // Teleport to random safe spot
+            let tx, ty, attempts = 0;
+            do {
+                tx = Math.floor(Math.random() * mapWidth);
+                ty = Math.floor(Math.random() * mapHeight);
+                attempts++;
+            } while (attempts < 100 && (map[ty][tx] !== 1 && map[ty][tx] !== 6)); // Sidewalk
+
+            if (map[ty][tx] === 1 || map[ty][tx] === 6) {
+                // Effect
+                spawnFloatingText(player.x, player.y, "Anywhere Door!", "#ff69b4");
+                playSound('door'); // Use door sound
+
+                player.x = tx * TILE_SIZE + TILE_SIZE / 2;
+                player.y = ty * TILE_SIZE + TILE_SIZE / 2;
+
+                // Clear Wanted Level
+                if (wantedLevel > 0) {
+                    wantedLevel = 0;
+                    spawnFloatingText(player.x, player.y, "Escaped!", "green");
+                }
+
+                player.anywhereDoorCooldown = 1800; // 30 seconds
+            }
+        }
+
+        function getCarValue(type) {
+            let base = 2000;
+            let range = 3000;
+
+            if (type === 'car1') { // Time Machine
+                base = 10000;
+                range = 10000;
+            } else if (type === 'car2') { // Mini Dora
+                base = 5000;
+                range = 3000;
+            } else if (['car_blue', 'car_green', 'car_yellow'].includes(type)) {
+                base = 4000;
+                range = 3000;
+            }
+
+            // Randomize within range
+            return Math.floor(base + Math.random() * range);
+        }
+
+        function update() {
+            // Pay Phone Logic
+            updatePhones();
+            updateDropOff();
+
+            updateNPCs();
+            updateTraffic();
+            checkPedestrianCollisions();
+
+            // Doraemon Mechanics Updates
+            if (player.superModeTimer > 0) {
+                player.superModeTimer--;
+                if (player.superModeTimer % 60 === 0) spawnFloatingText(player.x, player.y, "SUPER!", "gold");
+            }
+            if (player.anywhereDoorCooldown > 0) {
+                player.anywhereDoorCooldown--;
+            }
+
+            // ... (rest of update) ...
+
+
+            // Interaction Check (Enter/Exit Car)
+            if (keys['KeyE'] && !lastE) {
+                useAnywhereDoor();
+            }
+            lastE = keys['KeyE'];
+
+            if (keys['KeyF'] && !lastF) {
+                if (player.inCar) {
+                    // Exit
+                    playSound('door');
+                    if (engineSound) {
+                        engineSound.pause();
+                        engineSound.currentTime = 0;
+                        engineSound = null;
+                    }
+
+                    player.inCar = false;
+                    // Leave car behind
+                    cars.push({
+                        x: player.x,
+                        y: player.y,
+                        type: player.carType,
+                        angle: player.angle,
+                        speed: 0,
+                        driver: 'none',
+                        width: 48,
+                        height: 96,
+                        speed: 0,
+                        driver: 'none',
+                        width: 48,
+                        height: 96,
+                        engine: playSound('engine', true, 0.0),
+                        stuckTimer: 0,
+                        stolen: player.currentCarStolen, // Restore stolen status
+                        collisionStress: 0,
+                        reversingTimer: 0
+                    });
+                    // Offset player slightly
+                    player.x += 40;
+                } else {
+                    // Enter
+                    let closest = null;
+                    let minDist = 80;
+                    for (let i = 0; i < cars.length; i++) {
+                        const d = Math.hypot(cars[i].x - player.x, cars[i].y - player.y);
+                        if (d < minDist) {
+                            minDist = d;
+                            closest = i;
+                        }
+                    }
+                    if (closest !== null) {
+                        playSound('door', { x: player.x, y: player.y });
+                        engineSound = playSound('engine', { x: player.x, y: player.y }, true, 0.1); // Start silent, ramp up pitch/vol?ayer.y}, true, 0.0);
+
+                        const car = cars[closest];
+
+                        // Stop NPC engine sound
+                        if (car.engine) {
+                            car.engine.pause();
+                            car.engine = null;
+                        }
+
+                        player.inCar = true;
+                        player.carType = car.type;
+                        player.x = car.x;
+                        player.y = car.y;
+                        player.angle = car.angle;
+                        player.speed = car.speed; // Keep momentum
+
+                        // Save Stolen Status
+                        player.currentCarStolen = car.stolen || false;
+
+                        cars.splice(closest, 1);
+
+                        // Car Theft Reward
+                        if (!player.currentCarStolen && car.driver !== 'player') {
+                            player.currentCarStolen = true; // Mark as stolen in player state
+
+                            const value = getCarValue(car.type);
+                            // player.score += value; // Score only on delivery now? Or partial? Let's keep score on theft, mission progress on delivery.
+                            spawnFloatingText(player.x, player.y, "Stolen!", "orange");
+                            // checkMission('steal'); // Removed: Progress only on drop-off
+                            updateUI();
+                        }
+                    }
+                }
+            }
+            lastF = keys['KeyF'];
+
+            // Honk
+            if (keys['KeyH']) {
+                if (player.inCar) playSound('honk', { x: player.x, y: player.y }); // Simple trigger, should verify debounce if needed but spamming honk is fun
+            }
+
+            if (player.inCar) {
+                // Engine Sound Logic
+                if (engineSound) {
+                    // Pitch shift based on speed
+                    const rate = 0.5 + (Math.abs(player.speed) / player.maxSpeed) * 1.0;
+                    // HTML5 Audio preserves pitch by default on some browsers when changing rate? 
+                    // Usually playbackRate changes pitch+speed unless preservesPitch is set (new API).
+                    // However, basic playbackRate usually works enough for effect.
+                    engineSound.playbackRate = rate;
+                    engineSound.volume = Math.max(0, Math.min(1, 0.2 + (Math.abs(player.speed) / player.maxSpeed) * 0.3));
+                }
+
+                // Car Physics
+                // Improved acceleration for faster cars
+                if (keys['ArrowUp'] || keys['KeyW']) player.speed += 0.25; // Slower acceleration
+                if (keys['ArrowDown'] || keys['KeyS']) {
+                    player.speed -= 0.15; // Slower braking
+                    // Brake Sound
+                    if (player.speed > 0.5) { // If moving forward and braking hard
+                        // Throttle brake sound (don't spam every frame)
+                        if (Math.random() < 0.1) playSound('brake', { x: player.x, y: player.y }, false, 0.2);
+                    }
+                }
+
+                if (Math.abs(player.speed) > 0.1) {
+                    const dir = Math.sign(player.speed);
+
+                    // Smooth Steering Logic
+                    const maxTurn = 0.05; // Max turn speed (radians/frame)
+                    const turnAccel = 0.002; // How fast we reach max turn
+                    const turnDecay = 0.85; // How fast we return to 0 (friction)
+
+                    // Target Direction based on Input
+                    let targetDir = 0;
+                    if (keys['ArrowLeft'] || keys['KeyA']) targetDir = -1;
+                    if (keys['ArrowRight'] || keys['KeyD']) targetDir = 1;
+
+                    // Accelerate Turn Speed
+                    if (targetDir !== 0) {
+                        player.currentTurnSpeed += targetDir * turnAccel;
+
+                        // Clamp
+                        if (player.currentTurnSpeed > maxTurn) player.currentTurnSpeed = maxTurn;
+                        if (player.currentTurnSpeed < -maxTurn) player.currentTurnSpeed = -maxTurn;
+                    } else {
+                        // Decay / Straighten out
+                        player.currentTurnSpeed *= turnDecay;
+                        if (Math.abs(player.currentTurnSpeed) < 0.0001) player.currentTurnSpeed = 0;
+                    }
+
+                    // Apply Turn
+                    // Note: We use 'dir' to invert steering when reversing if desired.
+                    // Current logic: Forward(1) -> Left(-) -> Angle decreases.
+                    // Reverse(-1) -> Left(-) -> Angle INCREASES? (if we multiply by dir).
+                    // If we want natural car physics: Reversing + Turning Left (wheel) -> Car front swings Right, Rear swings Left.
+                    // Orientation rotates CW (Angle Increases).
+                    // So yes, multiplying by 'dir' is correct for natural reverse steering.
+
+                    player.angle += player.currentTurnSpeed * dir;
+
+                } else {
+                    player.currentTurnSpeed = 0;
+                }
+
+                // Friction
+                player.speed *= 0.95;
+            } else {
+                // Walking Physics (Character Centric)
+
+                // 1. Rotation
+                if (keys['ArrowLeft'] || keys['KeyA']) {
+                    player.angle -= player.rotationSpeed; // Rotate Left
+                }
+                if (keys['ArrowRight'] || keys['KeyD']) {
+                    player.angle += player.rotationSpeed; // Rotate Right
+                }
+
+                // 2. Movement (Forward/Backward relative to facing)
+                let moveSpeed = 0;
+                if (keys['ArrowUp'] || keys['KeyW']) {
+                    moveSpeed = player.walkSpeed;
+                } else if (keys['ArrowDown'] || keys['KeyS']) {
+                    moveSpeed = -player.walkSpeed * 0.6; // Slower backing up
+                }
+
+                if (player.superModeTimer > 0) moveSpeed *= 2.5; // FAST!
+
+                if (moveSpeed !== 0) {
+                    const nextX = player.x + Math.cos(player.angle) * moveSpeed;
+                    const nextY = player.y + Math.sin(player.angle) * moveSpeed;
+
+                    // Collision Check
+                    if (!checkArgCollision(nextX, player.y)) player.x = nextX;
+                    if (!checkArgCollision(player.x, nextY)) player.y = nextY;
+                }
+            }
+
+            if (player.inCar) {
+                const nextX = player.x + Math.cos(player.angle) * player.speed;
+                const nextY = player.y + Math.sin(player.angle) * player.speed;
+                if (checkArgCollision(nextX, nextY)) {
+                    player.speed *= -0.5; // Bounce
+                    // Add bounce sound?
+                    playSound('brake', { x: player.x, y: player.y }, false, 0.3);
+                } else {
+                    player.x = nextX;
+                    player.y = nextY;
+                }
+            }
+
+            // Shooting Logic
+            const now = Date.now();
+            if (keys['Space']) {
+                if (player.inCar) {
+                    // Handbrake!
+                    if (Math.abs(player.speed) > 0.5) {
+                        player.speed *= 0.85; // Rapid deceleration
+
+                        // Sound
+                        if (Math.random() < 0.3) playSound('brake', { x: player.x, y: player.y }, false, 0.3);
+
+                        // Add skid marks if moving fast enough
+                        if (Math.abs(player.speed) > 3) {
+                            // Add two skid marks for rear tires (approx)
+                            const offset = 10;
+                            const rearOffset = -20;
+                            const cx = player.x + Math.cos(player.angle) * rearOffset;
+                            const cy = player.y + Math.sin(player.angle) * rearOffset;
+
+                            // Left tire
+                            skidMarks.push({
+                                x: cx + Math.cos(player.angle - Math.PI / 2) * offset,
+                                y: cy + Math.sin(player.angle - Math.PI / 2) * offset,
+                                angle: player.angle,
+                                opacity: 1.0,
+                                life: 100 // Short life for marks
+                            });
+                            // Right tire
+                            skidMarks.push({
+                                x: cx + Math.cos(player.angle + Math.PI / 2) * offset,
+                                y: cy + Math.sin(player.angle + Math.PI / 2) * offset,
+                                angle: player.angle,
+                                opacity: 1.0,
+                                life: 100
+                            });
+                        }
+                    }
+                } else { // Can only shoot on foot for now
+                    const fireRate = player.weapon === 'machinegun' ? 100 : 300;
+                    if (now - player.lastShotTime > fireRate) {
+                        // Fire!
+                        bullets.push({
+                            x: player.x + Math.cos(player.angle) * 20,
+                            y: player.y + Math.sin(player.angle) * 20,
+                            angle: player.angle + (Math.random() - 0.5) * 0.1, // Slight spread
+                            speed: 15,
+                            life: 60,
+                            owner: 'player'
+                        });
+                        playSound('shoot', { x: player.x, y: player.y }, false, 0.4);
+                        player.lastShotTime = now;
+                    }
+                }
+            }
+
+            updateBullets();
+
+            // Update Pickups
+            if (Math.random() < 0.005 && pickups.length < 8) spawnPickup(); // Approx every 3-4s
+
+            updatePickups();
+
+
+
+            // Police Spawning
+            if (wantedLevel > 0) {
+                policeSpawnTimer--;
+                if (policeSpawnTimer <= 0) {
+                    const activePolice = cars.filter(c => c.type === 'police_car').length;
+
+                    if (activePolice < wantedLevel) {
+                        spawnPoliceCar();
+                        // Spawn rate based on wanted level
+                        // Level 1: Every 10s (600 frames)
+                        // Level 5: Every 2s (120 frames)
+                        policeSpawnTimer = 700 - (wantedLevel * 100);
+                    } else {
+                        // Limit reached. Keep timer at 0 or start a small cooldown?
+                        // If we let it go negative, instant respawn when one dies.
+                        // Let's add a small delay to prevent INSTANT appearance for better pacing.
+                        policeSpawnTimer = 100; // 1.5 seconds delay before checking again
+                    }
+                }
+            } else {
+                policeSpawnTimer = 0;
+            }
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = 'yellow';
+            bullets.forEach(b => {
+                const iso = toIso(b.x, b.y);
+                // Iso check (bounds) - optional optimization
+
+                ctx.save();
+                ctx.translate(iso.x, iso.y);
+
+                // Bullet direction? 
+                // b.angle is World Angle.
+                // In Iso, World X+ is Down-Right, World Y+ is Down-Left.
+                // Visual Angle needs to be adjusted?
+                // Actually, if we rotate canvas by b.angle, it rotates in screen space?
+                // No, b.angle is Cartesian angle.
+                // Screen X = X_iso, Screen Y = Y_iso.
+                // We need to map Cartesian Vector (cos, sin) to Iso Vector.
+
+                const vx = Math.cos(b.angle);
+                const vy = Math.sin(b.angle);
+
+                // Iso Vector
+                const ivx = vx - vy;
+                const ivy = (vx + vy) / 2;
+
+                const isoAngle = Math.atan2(ivy, ivx);
+
+                ctx.rotate(isoAngle);
+                ctx.fillRect(-6, -1, 12, 2); // Tracer
+                ctx.restore();
+            });
+        }
+
+        function drawPickups() {
+            // Moved to renderObjectList for sorting
+        }
+
+        function drawMissionIndicators() {
+            if (!mission.active || mission.type !== 'kill') return;
+
+            npcs.forEach(npc => {
+                if (npc.isMissionTarget) {
+                    // 1. Draw "TARGET" Text above NPC
+                    // Need screen coords for this
+                    const iso = toIso(npc.x - player.x, npc.y - player.y);
+                    const screenX = width / 2 + iso.x * CAM_ZOOM;
+                    const screenY = height / 2 + iso.y * CAM_ZOOM;
+
+                    // Only skip if way off screen
+                    if (screenX > -100 && screenX < width + 100 && screenY > -100 && screenY < height + 100) {
+                        ctx.save();
+                        ctx.fillStyle = "red";
+                        ctx.strokeStyle = "black";
+                        ctx.lineWidth = 3;
+                        ctx.font = "bold 16px monospace";
+                        ctx.textAlign = "center";
+                        ctx.strokeText("TARGET", screenX, screenY - 50 * CAM_ZOOM);
+                        ctx.fillText("TARGET", screenX, screenY - 50 * CAM_ZOOM);
+
+                        // Draw Red Ring
+                        ctx.beginPath();
+                        ctx.ellipse(screenX, screenY + 20 * CAM_ZOOM, 20 * CAM_ZOOM, 10 * CAM_ZOOM, 0, 0, Math.PI * 2);
+                        ctx.strokeStyle = "rgba(255, 0, 0, 0.6)";
+                        ctx.lineWidth = 4;
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+
+                    // 2. Draw Arrow Indicators on Edge of Screen if off-screen
+                    // Calculate angle to target
+                    const dx = npc.x - player.x;
+                    const dy = npc.y - player.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if (dist > 400) { // Only show arrow if somewhat far
+                        const angle = Math.atan2(dy, dx);
+
+                        // Arrow Position relative to player center (screen center)
+                        // But we want it in screen coordinates
+                        // Iso projection complicates "angle" visual slightly, 
+                        // but a simple 2D direction arrow on the UI layer works best for finding things
+
+                        // Re-calculate visual angle on screen
+                        const isoPos = toIso(dx, dy);
+                        const visualAngle = Math.atan2(isoPos.y, isoPos.x);
+
+                        const radius = Math.min(width, height) / 2 - 50;
+                        const arrowX = width / 2 + Math.cos(visualAngle) * radius;
+                        const arrowY = height / 2 + Math.sin(visualAngle) * radius;
+
+                        ctx.save();
+                        ctx.translate(arrowX, arrowY);
+                        ctx.rotate(visualAngle);
+
+                        // Draw Arrow
+                        ctx.beginPath();
+                        ctx.moveTo(10, 0);
+                        ctx.lineTo(-10, 10);
+                        ctx.lineTo(-10, -10);
+                        ctx.closePath();
+                        ctx.fillStyle = "red";
+                        ctx.fill();
+                        ctx.strokeStyle = "white";
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        ctx.restore();
+                    }
+                }
+            });
+        }
+
+        function drawMissionTargetMarkers() {
+            if (!mission.active || mission.type !== 'kill') return;
+
+            npcs.forEach(npc => {
+                if (npc.isMissionTarget && npc.health > 0) {
+                    const iso = toIso(npc.x, npc.y); // World Iso Coords
+
+                    // Simple Culling
+                    // pIso is not available here easily unless we pass it or recalc
+                    // But we are in World Transform, so we can just draw at iso.x, iso.y
+
+                    ctx.save();
+                    ctx.translate(iso.x, iso.y);
+
+                    // Ring
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 30, 15, 0, 0, Math.PI * 2); // 30px radius wide
+                    ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+
+                    // Text
+                    ctx.fillStyle = "red";
+                    ctx.strokeStyle = "black";
+                    ctx.lineWidth = 3;
+                    ctx.font = "bold 20px monospace";
+                    ctx.textAlign = "center";
+
+                    const bounce = Math.sin(Date.now() / 150) * 10;
+                    ctx.strokeText("TARGET", 0, -80 + bounce);
+                    ctx.fillText("TARGET", 0, -80 + bounce);
+
+                    ctx.restore();
+                }
+            });
+        }
+
+        function drawMissionArrows() {
+            if (!mission.active || mission.type !== 'kill') return;
+
+            // This is called AFTER camera restore, so we are in Screen Space (0,0 is Top-Left)
+            // Center is width/2, height/2 (Player Position on Screen)
+
+            const screenCX = width / 2;
+            const screenCY = height / 2;
+
+            npcs.forEach(npc => {
+                if (npc.isMissionTarget && npc.health > 0) {
+                    const dx = npc.x - player.x;
+                    const dy = npc.y - player.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if (dist > 400) {
+                        // Calculate angle on screen
+                        // We need to convert the World Direction (dx, dy) to Screen Direction
+                        // World X+ maps to Screen Down-Right
+                        // World Y+ maps to Screen Down-Left
+
+                        const isoPos = toIso(dx, dy);
+                        // isoPos.x = dx - dy
+                        // isoPos.y = (dx + dy) / 2
+
+                        const screenAngle = Math.atan2(isoPos.y, isoPos.x);
+
+                        const radius = Math.min(width, height) / 2 - 60;
+                        const arrowX = screenCX + Math.cos(screenAngle) * radius;
+                        const arrowY = screenCY + Math.sin(screenAngle) * radius;
+
+                        ctx.save();
+                        ctx.translate(arrowX, arrowY);
+                        ctx.rotate(screenAngle);
+
+                        // Draw Arrow
+                        ctx.beginPath();
+                        ctx.moveTo(15, 0);
+                        ctx.lineTo(-15, 15);
+                        ctx.lineTo(-15, -15);
+                        ctx.closePath();
+
+                        ctx.fillStyle = "red";
+                        ctx.fill();
+                        ctx.strokeStyle = "white";
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        ctx.restore();
+                    }
+                }
+            });
+        }
+
+        function draw() {
+            // Clear
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.save();
+
+            // Camera follow
+            // Camera follow
+            // Isometric Projection Helper: now global
+
+            // Calculate Player Iso Pos for Camera (Center on Player)
+            const pIso = toIso(player.x, player.y);
+            const camX = Math.floor(width / 2 - pIso.x * CAM_ZOOM);
+            const camY = Math.floor(height / 2 - pIso.y * CAM_ZOOM);
+
+            ctx.translate(camX, camY);
+            ctx.scale(CAM_ZOOM, CAM_ZOOM);
+
+            // Draw Map
+            const renderList = [];
+            for (let y = 0; y < mapHeight; y++) {
+                for (let x = 0; x < mapWidth; x++) {
+                    const tileType = map[y][x];
+
+                    // Logic Coords (Top-Down)
+                    const worldX = x * TILE_SIZE;
+                    const worldY = y * TILE_SIZE;
+
+                    // Iso Coords for Ground (Top-Left of Diamond)
+                    const iso = toIso(worldX, worldY);
+
+                    // Culling (Approximate wide bounds)
+                    if (iso.x < pIso.x - (width / CAM_ZOOM) - 600 || iso.x > pIso.x + (width / CAM_ZOOM) + 600 ||
+                        iso.y < pIso.y - (height / CAM_ZOOM) - 600 || iso.y > pIso.y + (height / CAM_ZOOM) + 600) continue;
+
+                    let isoImg = null;
+                    if (tileType === 3) {
+                        // Check for 2x2 Building Blocks in Grid Size 7
+                        // Inner block range: 2,3,4,5
+                        // Possible 2x2 anchors: (2,2), (2,4), (4,2), (4,4)
+
+                        const GRID_SIZE = 7;
+                        const modX = x % GRID_SIZE;
+                        const modY = y % GRID_SIZE;
+
+                        // Check if this is an anchor (Top-Left of 2x2)
+                        const isAnchor = (modX === 2 || modX === 4) && (modY === 2 || modY === 4);
+
+                        // Check if this is a "skip" tile (part of a 2x2 starting elsewhere)
+                        // Valid 2x2s start at 2 and 4.
+                        // Skip if x is 3 (part of 2) or 5 (part of 4)
+                        // Skip if y is 3 (part of 2) or 5 (part of 4)
+                        const isSkipX = (modX === 3 || modX === 5);
+                        const isSkipY = (modY === 3 || modY === 5);
+
+                        // We are in a building tile (index 2-5).
+                        // If we are at an anchor, render Large.
+                        // If we are at a skip position, render nothing.
+
+                        if (isAnchor) {
+                            const seed = Math.abs(x * 37 + y * 13) % 8; // Incresed range for more variety
+                            if (seed === 0) isoImg = assets.iso_commercial;
+                            else if (seed === 1) isoImg = assets.iso_nobita_house;
+                            else if (seed === 2) isoImg = assets.iso_residential;
+                            else if (seed === 3) isoImg = assets.iso_school;
+                            else if (seed === 4) isoImg = assets.iso_shop;
+                            else if (seed === 5) isoImg = assets.iso_future_house;
+                            else isoImg = assets.iso_highrise;
+
+                            // Sort Key: Center of 2x2 base
+                            const cornerIso = toIso(worldX + TILE_SIZE * 2, worldY + TILE_SIZE * 2);
+
+                            renderList.push({
+                                sortY: cornerIso.y,
+                                type: 'building_large',
+                                img: isoImg,
+                                isoX: iso.x,
+                                isoY: iso.y,
+                                worldX: worldX,
+                                worldY: worldY
+                            });
+                        } else if (isSkipX || isSkipY) {
+                            // Part of 2x2 block - Skip
+                        } else {
+                            // Border / Fallback (Shouldn't happen in perfect 7-grid inner 2-5 range, but safe ref)
+                            const seed = Math.abs(x * 37 + y * 13) % 6;
+                            if (seed === 0) isoImg = assets.iso_commercial;
+                            else if (seed === 1) isoImg = assets.iso_nobita_house;
+                            else if (seed === 2) isoImg = assets.iso_shop;
+                            else isoImg = assets.iso_highrise;
+
+                            const cornerIso = toIso(worldX + TILE_SIZE, worldY + TILE_SIZE);
+                            renderList.push({
+                                sortY: cornerIso.y,
+                                type: 'building',
+                                img: isoImg,
+                                isoX: iso.x,
+                                isoY: iso.y,
+                                worldY: worldY
+                            });
+                        }
+                    }
+
+                    // Park / Garden Props (Tile Type 2 - Grass)
+                    if (tileType === 2) {
+                        // Using Grid 7 logic, check if we are at a Park Anchor (2,2; 2,4; 4,2; 4,4)
+                        const GRID_SIZE = 7;
+                        const modX = x % GRID_SIZE;
+                        const modY = y % GRID_SIZE;
+
+                        // Valid 2x2 Park Anchors
+                        const isAnchor = (modX === 2 || modX === 4) && (modY === 2 || modY === 4);
+
+                        // We also need to check "skips" if we want to treat it as a 2x2 unit, 
+                        // but since grass is drawn on all tiles, we can just spawn props at the anchor
+                        // and let them be drawn on top. 
+                        // However, we only want ONE set of props per 2x2 area, so only spawn at anchor.
+
+                        if (isAnchor) {
+                            // Multiple Props Logic: Check 4 slots in the 2x2 area
+                            for (let py = 0; py < 2; py++) {
+                                for (let px = 0; px < 2; px++) {
+                                    // Unique seed for this slot
+                                    const slotSeed = Math.abs((x + px) * 45 + (y + py) * 23);
+
+                                    // 50% chance to have a prop in this slot
+                                    if ((slotSeed % 100) < 50) {
+                                        const propType = Math.floor((slotSeed * 10) % 4);
+
+                                        // Calculate World Pos for this slot
+                                        // Anchor is at (x, y). Slot is at (x+px, y+py).
+                                        // Center of that tile.
+                                        const pWorldX = (x + px) * TILE_SIZE; // Tile Left
+                                        const pWorldY = (y + py) * TILE_SIZE; // Tile Top
+
+                                        // Iso for the specific tile
+                                        const pIso = toIso(pWorldX, pWorldY);
+
+                                        // SortY: Bottom of this specific tile
+                                        const pCornerIso = toIso(pWorldX + TILE_SIZE, pWorldY + TILE_SIZE);
+
+                                        renderList.push({
+                                            sortY: pCornerIso.y,
+                                            type: 'park_prop',
+                                            propIndex: propType,
+                                            isoX: pIso.x,
+                                            isoY: pIso.y,
+                                            worldX: pWorldX,
+                                            worldY: pWorldY
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Ground Assets
+                    let img = null;
+                    if (tileType === 0) img = assets.road;
+                    if (tileType === 4 || tileType === 5) img = assets.road;
+                    if (tileType === 5) img = assets.intersection;
+                    if (tileType === 1) img = assets.sidewalk;
+                    if (tileType === 6) img = assets.corner;
+                    if (tileType === 2) img = assets.grass;
+
+                    // Fallback ground for buildings
+                    if (tileType === 3) {
+                        img = assets.sidewalk; // Default
+
+                        // Check context: what building is here?
+                        // Re-derive seed logic
+                        const GRID_SIZE = 7;
+                        const modX = x % GRID_SIZE;
+                        const modY = y % GRID_SIZE;
+
+                        // Identify if we are part of a 2x2 block
+                        // Anchor points: (2,2), (2,4), (4,2), (4,4)
+                        let anchorX = -1, anchorY = -1;
+
+                        if ((modX === 2 || modX === 4) && (modY === 2 || modY === 4)) { anchorX = x; anchorY = y; } // Is Anchor
+                        else if ((modX === 3 || modX === 5) && (modY === 2 || modY === 4)) { anchorX = x - 1; anchorY = y; } // Right of Anchor
+                        else if ((modX === 2 || modX === 4) && (modY === 3 || modY === 5)) { anchorX = x; anchorY = y - 1; } // Below Anchor
+                        else if ((modX === 3 || modX === 5) && (modY === 3 || modY === 5)) { anchorX = x - 1; anchorY = y - 1; } // Diag of Anchor
+
+                        if (anchorX !== -1) {
+                            const seed = Math.abs(anchorX * 37 + anchorY * 13) % 8;
+                            if (seed === 1) img = assets.iso_ground_japan_street; // Nobita House
+                            else if (seed === 3) img = assets.iso_ground_school; // School
+                            else if (seed === 4) img = assets.iso_ground_japan_street; // Shop
+                            else if (seed === 5) img = assets.iso_ground_garden; // Future House
+                        } else {
+                            // Single tile filler
+                            const seed = Math.abs(x * 37 + y * 13) % 6;
+                            if (seed === 1) img = assets.iso_ground_japan_street; // Nobita House
+                            else if (seed === 2) img = assets.iso_ground_japan_street; // Shop
+                        }
+                    }
+
+                    if (img && img.complete) {
+                        ctx.save();
+                        // Move to Iso Position
+                        ctx.translate(iso.x, iso.y);
+
+                        // Apply Isometric Skew to Top-Down Tile
+                        // Map (0,0)->(T,0) to Vector(T, T/2)
+                        // Map (0,0)->(0,T) to Vector(-T, T/2)
+                        // Transform Matrix: 1, 0.5, -1, 0.5, 0, 0
+                        ctx.transform(1, 0.5, -1, 0.5, 0, 0);
+
+                        // Rotations (Must apply before skew, i.e., in world space, but here we are transforming context)
+                        // Since we are transforming the coordinate system to skew, if we rotate now, we rotate the skewed result?
+                        // No, `ctx.rotate` multiplies the current matrix.
+                        // If we want to rotate the *source texture* on the diamond:
+                        // That corresponds to rotating the tile in world space?
+                        // Our transform maps (u,v) -> (x,y).
+                        // If we rotate (u,v), we change which part of texture maps to where.
+                        // This logic is tricky
+                        // Center is at (0.5, 0.5) in local tile space.
+
+                        // Let's iterate:
+                        // 1. To Center
+                        ctx.translate(TILE_SIZE / 2, TILE_SIZE / 2);
+                        // 2. Rotate
+                        if (tileType === 4) ctx.rotate(Math.PI / 2);
+                        if (tileType === 1) {
+                            if (x % 7 === 1) ctx.rotate(Math.PI / 2);
+                            else if (x % 7 === 6) ctx.rotate(-Math.PI / 2);
+                            else if (y % 7 === 1) ctx.rotate(Math.PI);
+                            else if (y % 7 === 6) ctx.rotate(0);
+                        }
+                        if (tileType === 6) {
+                            if (x % 7 === 1 && y % 7 === 1) ctx.rotate(Math.PI);
+                            else if (x % 7 === 6 && y % 7 === 1) ctx.rotate(-Math.PI / 2);
+                            else if (x % 7 === 1 && y % 7 === 6) ctx.rotate(Math.PI / 2);
+                            else if (x % 7 === 6 && y % 7 === 6) ctx.rotate(0);
+                        }
+                        // 3. Back from Center
+                        ctx.translate(-TILE_SIZE / 2, -TILE_SIZE / 2);
+
+                        ctx.drawImage(img, 0, 0, TILE_SIZE, TILE_SIZE);
+                        ctx.restore();
+                    } else {
+                        // Fallback Color
+                        ctx.save();
+                        ctx.translate(iso.x, iso.y);
+                        ctx.transform(1, 0.5, -1, 0.5, 0, 0);
+                        const colors = ['#333', '#888', '#0f0', '#500', '#333', '#333', '#aaa'];
+                        ctx.fillStyle = colors[tileType] || '#333';
+                        ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                        ctx.restore();
+                    }
+
+                    // --- STREET PROPS SPAWNING ---
+                    const propSeed = (x * 73 + y * 19) % 100; // Deterministic random
+
+                    // On Sidewalks: Vending Machines, Mailboxes
+                    if (tileType === 1) {
+                        if (propSeed === 5) { // 1% chance
+                            renderList.push({
+                                sortY: iso.y + TILE_SIZE / 2, // Centerish
+                                type: 'street_prop',
+                                img: assets.iso_prop_vending,
+                                isoX: iso.x,
+                                isoY: iso.y
+                            });
+                        } else if (propSeed === 15) { // 1% chance
+                            renderList.push({
+                                sortY: iso.y + TILE_SIZE / 2,
+                                type: 'street_prop',
+                                img: assets.iso_prop_mailbox,
+                                isoX: iso.x,
+                                isoY: iso.y
+                            });
+                        }
+                        else if (propSeed === 25) { // Sakura on street
+                            renderList.push({
+                                sortY: iso.y + TILE_SIZE / 2,
+                                type: 'street_prop',
+                                img: assets.iso_prop_sakura,
+                                isoX: iso.x,
+                                isoY: iso.y,
+                                scale: 1.2
+                            });
+                        }
+                    }
+
+                    // On Grass: Sakura, Pipes
+                    // Also check for empty tiles that are effectively grass? tileType 2 is grass.
+                    if (tileType === 2) {
+                        if (propSeed === 35) { // Sakura
+                            renderList.push({
+                                sortY: iso.y + TILE_SIZE / 2,
+                                type: 'street_prop',
+                                img: assets.iso_prop_sakura,
+                                isoX: iso.x,
+                                isoY: iso.y,
+                                scale: 1.2
+                            });
+                        }
+                        else if (propSeed === 45) { // Pipes
+                            renderList.push({
+                                sortY: iso.y + TILE_SIZE / 2,
+                                type: 'street_prop',
+                                img: assets.iso_prop_pipes,
+                                isoX: iso.x,
+                                isoY: iso.y
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Draw Ground Decals (Craters, Blood, Skidmarks) - Flattened
+            ctx.save();
+
+            // 1. Skid Marks
+            skidMarks.forEach((mark, i) => {
+                mark.life--;
+                if (mark.life <= 0) {
+                    skidMarks.splice(i, 1);
+                    return;
+                }
+                const iso = toIso(mark.x, mark.y);
+
+                // Culling? Safe to skip for now or use iso check
+
+                ctx.save();
+                ctx.translate(iso.x, iso.y);
+                ctx.transform(1, 0.5, -1, 0.5, 0, 0); // Isometrize
+                ctx.rotate(mark.angle + Math.PI / 4); // Adjust rotation for skew
+                ctx.fillStyle = `rgba(0,0,0,${Math.min(0.5, mark.life / 100)})`;
+                ctx.fillRect(-5, -2, 10, 4);
+                ctx.restore();
+            });
+
+            // 2. Craters / Blood
+            bloodStains.forEach((stain, i) => {
+                if (stain.type === 'explosion') return; // Handled in renderList
+
+                const iso = toIso(stain.x, stain.y);
+
+                ctx.save();
+                ctx.translate(iso.x, iso.y);
+                ctx.transform(1, 0.5, -1, 0.5, 0, 0); // Isometrize
+                // ctx.rotate(stain.angle); // Rotation on skew? 
+
+                if (stain.type === 'crater') {
+                    const img = assets.crater;
+                    if (img) {
+                        ctx.globalAlpha = 0.8;
+                        ctx.drawImage(img, -stain.size / 2, -stain.size / 2, stain.size, stain.size);
+                    }
+                } else {
+                    // Blood
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillStyle = stain.color || '#cc0000';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, stain.size, stain.size * 0.6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+            ctx.restore();
+
+
+
+
+
+            // Collect Cars
+            cars.forEach(car => {
+                const iso = toIso(car.x, car.y);
+                renderList.push({
+                    sortY: iso.y,
+                    type: car.type, // Respect the car's actual type (e.g. 'police_car')
+                    obj: car,
+                    isoX: iso.x,
+                    isoY: iso.y
+                });
+            });
+
+            // Collect Pickups
+            pickups.forEach(p => {
+                const iso = toIso(p.x, p.y);
+                renderList.push({
+                    sortY: iso.y,
+                    type: 'pickup_' + p.type,
+                    obj: p,
+                    isoX: iso.x,
+                    isoY: iso.y
+                });
+            });
+
+            // Collect NPCs
+            npcs.forEach(npc => {
+                const iso = toIso(npc.x, npc.y);
+                renderList.push({
+                    sortY: iso.y,
+                    type: 'npc',
+                    obj: npc,
+                    isoX: iso.x,
+                    isoY: iso.y
+                });
+            });
+
+            // Collect Pickups (Generic Icon Overlay)
+            pickups.forEach(p => {
+                if (!p.active) return;
+                if (p.type === 'health' || p.type === 'armor' || p.type === 'dorayaki') return; // Skip generic icon for health/armor/dorayaki
+
+                const iso = toIso(p.x, p.y);
+                renderList.push({
+                    sortY: iso.y,
+                    type: 'pickup',
+                    obj: p,
+                    isoX: iso.x,
+                    isoY: iso.y
+                });
+            });
+
+
+            // Collect Explosions
+            bloodStains.forEach((stain, i) => {
+                if (stain.type === 'explosion') {
+                    stain.life--; // Decrement life here since we process logic
+                    if (stain.life <= 0) {
+                        bloodStains.splice(i, 1);
+                        return;
+                    }
+                    const iso = toIso(stain.x, stain.y);
+                    renderList.push({
+                        sortY: iso.y,
+                        type: 'explosion',
+                        obj: stain,
+                        isoX: iso.x,
+                        isoY: iso.y
+                    });
+                }
+            });
+
+            // Collect Player
+            const pIsoPos = toIso(player.x, player.y);
+            renderList.push({
+                sortY: pIsoPos.y,
+                type: 'player',
+                obj: player,
+                isoX: pIsoPos.x,
+                isoY: pIsoPos.y
+            });
+
+            // Collect Phones
+            drawPhones(renderList);
+
+            // Sort by Y (Depth)
+            renderList.sort((a, b) => a.sortY - b.sortY);
+
+            // Draw Sorted Objects
+            renderList.forEach(item => {
+                // Building
+                if (item.type === 'building') {
+                    const img = item.img;
+                    if (img && img.complete) {
+                        // Scale
+                        let scale = (TILE_SIZE * 1.5) / img.naturalWidth;
+
+                        // Scale down new assets
+                        if (img === assets.iso_nobita_house ||
+                            img === assets.iso_shop ||
+                            img === assets.iso_future_house) {
+                            scale *= 0.6; // Reduce size for housing/shops
+                        }
+                        if (img === assets.iso_school) {
+                            scale *= 0.9; // Slight reduction for school
+                        }
+
+                        const drawW = Math.floor(img.naturalWidth * scale);
+                        const drawH = Math.floor(img.naturalHeight * scale);
+
+                        const centerX = item.isoX;
+                        const centerY = item.isoY + TILE_SIZE / 2;
+
+                        const destX = centerX - drawW / 2;
+                        const destY = centerY - drawH + (TILE_SIZE / 4); // Adjustment to fit perspective
+
+                        ctx.drawImage(img, destX, destY, drawW, drawH);
+                    }
+                    return;
+                }
+
+                if (item.type === 'building_large') {
+                    const img = item.img;
+                    if (img && img.complete) {
+                        // Scale for 2x2 tiles. 
+                        // 1 tile width = 1.5 scale? 
+                        // 2 tile width should be approx 3.0 scale.
+                        // Actually, diagonal width of 2 tiles is TILE_SIZE * 2 * 2 (Iso geometry is tricky)
+                        // A single tile has width 2*TILE_SIZE in flattened Iso? No.
+                        // Our transform is 1, 0.5, -1, 0.5
+                        // (T, 0) -> (T, T/2).  Dist = sqrt(T^2 + T^2/4) = T * 1.118
+                        // Width of a Diamond is 2 * TILE_SIZE.
+                        // Width of 2x2 Diamond is 4 * TILE_SIZE.
+
+                        // Let's try scaling up relative to standard building.
+                        // Standard building (1 tile) used scale 1.5 * TILE_SIZE.
+                        // Large building (2 tile) should use approx 3.0 * TILE_SIZE.
+
+                        const scaleBase = (TILE_SIZE * 3.0) / img.naturalWidth;
+                        let scale = scaleBase;
+
+                        // Scale down new assets
+                        if (img === assets.iso_nobita_house ||
+                            img === assets.iso_shop ||
+                            img === assets.iso_future_house) {
+                            scale *= 0.6; // Reduce size
+                        }
+                        if (img === assets.iso_school) {
+                            scale *= 0.9; // Slight reduction for school
+                        }
+
+                        const drawW = Math.floor(img.naturalWidth * scale);
+                        const drawH = Math.floor(img.naturalHeight * scale);
+
+                        // Center of the 2x2 block (top surface)
+                        // isoX, isoY is Top-Left of the 2x2 block (North Corner)
+                        // Center is + TILE_SIZE in Y?
+                        // Let's align Bottom-Center of sprite to Bottom-Center of 2x2 Base.
+
+                        // Bottom Corner of 2x2 Base in Iso:
+                        // worldX + 2T, worldY + 2T -> same as item.sortY logic?
+                        // No, let's stick to centering horizontally.
+
+                        const centerX = item.isoX;
+                        // item.isoX is (x-y). 
+                        // Center of 2x2 is (x+T - (y+T)) = x-y. Same X!
+                        // Yes, in Iso, the diagonal center has same X as corners.
+
+                        // Center Y
+                        // item.isoY is (x+y)/2.
+                        // Center is (x+T + y+T)/2 = (x+y)/2 + T.
+                        const centerY = item.isoY + TILE_SIZE;
+
+                        const destX = centerX - drawW / 2;
+                        const destY = centerY - drawH + TILE_SIZE; // Adjustment
+
+                        ctx.drawImage(img, destX, destY, drawW, drawH);
+                    }
+                    return;
+                }
+
+                if (item.type === 'street_prop') {
+                    const img = item.img;
+                    if (img && img.complete && img.naturalWidth > 0) {
+                        // Props are small.
+                        // Standardize to TILE_SIZE * 0.8 width?
+                        // Except Sakura which is bigger.
+
+                        let targetScale = 0.6; // Vending/Mailbox
+                        if (img === assets.iso_prop_sakura) targetScale = 1.2;
+                        if (img === assets.iso_prop_pipes) targetScale = 0.8;
+
+                        // Current raw assets are 64x64 placeholders or larger generated ones.
+                        // We want them to fit in TILE_SIZE (64 in logic, but rendered larger).
+
+                        const scale = (TILE_SIZE * targetScale) / img.width; // Use width for consistent sizing
+                        const drawW = img.width * scale;
+                        const drawH = img.height * scale;
+
+                        const centerX = item.isoX;
+                        const centerY = item.isoY + TILE_SIZE / 2; // Middle of tile
+
+                        const destX = centerX - drawW / 2;
+                        const destY = centerY - drawH + (TILE_SIZE * 0.25); // Anchor near bottom
+
+                        ctx.drawImage(img, destX, destY, drawW, drawH);
+                    }
+                    return;
+                }
+
+                if (item.type === 'park_prop') {
+                    const img = assets.iso_park_props;
+                    if (img && img.complete && img.naturalWidth > 0) {
+                        const w = img.naturalWidth / 2;
+                        const h = img.naturalHeight / 2;
+                        const idx = item.propIndex;
+                        const sx = (idx % 2) * w;
+                        const sy = Math.floor(idx / 2) * h;
+
+                        // Scale: Let's make props decently large. TILE_SIZE * 1.5 usually?
+                        // 2x2 area is large. We want props to be visible.
+                        // Let's say target width is TILE_SIZE.
+                        const scale = TILE_SIZE / w;
+                        const drawW = w * scale;
+                        const drawH = h * scale;
+
+                        // Center is item.isoX + TILE_SIZE in Y? No.
+                        // item.isoX is Center X of tile.
+                        // item.isoY is Top Y of tile.
+                        // Bottom Y of tile is item.isoY + TILE_SIZE.
+
+                        const centerX = item.isoX;
+                        const groundY = item.isoY + TILE_SIZE; // Bottom of the tile
+
+                        const destX = centerX - drawW / 2;
+                        const destY = groundY - drawH; // Align bottom of sprite with ground
+
+                        ctx.drawImage(img, sx, sy, w, h, destX, destY, drawW, drawH);
+                    }
+                    return;
+                }
+
+                // Car / NPC / Player (Billboarded / Top-Down 3D)
+                const obj = item.obj;
+                let img = null;
+
+                // Use 3D assets if available
+                // Use 3D assets if available
+                if (item.type === 'car') img = assets.car_3d;
+                else if (item.type === 'car1') img = assets.car1; // Time Machine Car
+                else if (item.type === 'car2') img = assets.car2; // Mini Dora Car
+                else if (item.type === 'car_blue') img = assets.car_blue;
+                else if (item.type === 'car_green') img = assets.car_green;
+                else if (item.type === 'car_yellow') img = assets.car_yellow;
+                if (item.type === 'police_car') {
+                    img = assets.police_car;
+                }
+                if (item.type === 'npc') img = assets[obj.type]; // Fallback to flat sprite (stood up)
+                if (item.type === 'target_enemy') img = assets['target_enemy']; // Explicit handling
+                if (item.type === 'player') {
+                    if (obj.inCar) {
+                        // Use the specific car type the player is driving
+                        if (obj.carType && assets[obj.carType]) {
+                            img = assets[obj.carType];
+                        } else {
+                            img = assets.car_3d;
+                        }
+                    }
+                    else img = assets.player_3d;
+                }
+
+                if (img && img.complete) {
+                    ctx.save();
+
+                    // Position at Center of Tile (Feet position)
+                    ctx.translate(item.isoX, item.isoY);
+
+                    // Drop Shadow (Isometric) - Always on ground
+                    ctx.save();
+                    ctx.transform(1, 0.5, -1, 0.5, 0, 0); // Flatten to ground
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                    let shadowSize = 12; // Default (NPC/Player)
+                    if (item.type === 'car' || item.type === 'car1' || item.type === 'car2' || item.type === 'car_blue' || item.type === 'car_green' || item.type === 'car_yellow' || (item.type === 'player' && obj.inCar)) shadowSize = 28;
+
+                    // Shadow gets smaller if flying
+                    if (item.type === 'player' && obj.isFlying) {
+                        shadowSize *= 0.6;
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'; // Lighter shadow
+                    }
+
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, shadowSize, shadowSize, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+
+                    // Apply Height (Z-axis) - Move sprite UP
+                    let zOffset = 0;
+                    if (item.type === 'player' && obj.isFlying) {
+                        zOffset = obj.z;
+                    }
+                    ctx.translate(0, -zOffset);
+
+
+                    // Do NOT Skew. Draw "Standing Up" (Billboard style) or "Top Down" (Flat but unskewed?)
+                    // If we don't skew, the sprite is a rect on screen.
+                    // Rotation: We rotate the canvas around the center to orient the sprite.
+
+                    // Scale
+                    let scale = 1.0;
+
+                    // Save context before applying Entity-specific Rotation/Scale
+                    ctx.save();
+
+
+                    if (item.type === 'car' || item.type === 'car1' || item.type === 'car2' || item.type === 'police_car' || item.type === 'car_blue' || item.type === 'car_green' || item.type === 'car_yellow' || (item.type === 'player' && obj.inCar)) {
+                        // Car Asset is huge (1024). Target length ~ 75px (Bigger but passable)
+                        let targetSize = 75;
+                        if (item.type === 'car2' || item.type === 'car_blue' || item.type === 'car_green' || item.type === 'car_yellow') targetSize = 90; // Boosting Mini/New Dora visibility
+
+                        scale = targetSize / img.naturalWidth;
+                        ctx.scale(scale, scale);
+
+                        // Calculate Iso Rotation
+                        // obj.angle is World Angle (0 = East, PI/2 = South)
+                        // Proejct vector (cos, sin) to Iso screen vector
+                        const vx = Math.cos(obj.angle);
+                        const vy = Math.sin(obj.angle);
+                        const isoVx = vx - vy;
+                        const isoVy = (vx + vy) / 2;
+                        const isoAngle = Math.atan2(isoVy, isoVx);
+
+                        // Rotation Correction
+                        let finalAngle = isoAngle + Math.PI / 2; // Default: Sprite faces UP
+
+                        // Time Machine Car (car1) seems to be offset by 90 degrees
+                        // Apply if it's a traffic car OR player driving it
+                        // Rotation Correction Logic
+
+                        let currentCarType = item.type;
+                        if (item.type === 'player' && obj.inCar) currentCarType = obj.carType;
+
+                        // Time Machine Car (car1) faces RIGHT in sprite -> needs -90 deg
+                        if (currentCarType === 'car1') {
+                            finalAngle -= Math.PI / 2;
+                        }
+
+                        // New Cars (Blue, Green, Yellow) face LEFT in sprite -> needs +90 deg (Total 180 from -90 fix)
+                        const needsPlus90 = ['car_blue', 'car_green', 'car_yellow'];
+                        if (needsPlus90.includes(currentCarType)) {
+                            finalAngle += Math.PI / 2;
+                        }
+
+                        if (item.type === 'car2') {
+                            // console.log("Drawing Car2 (Mini Dora) at " + item.isoX + "," + item.isoY);
+                        }
+
+                        ctx.rotate(finalAngle);
+
+                    } else if (item.type === 'player' || item.type === 'npc') {
+                        // Player/NPC Assets (1024). Target width ~ 30px
+                        scale = 30 / img.naturalWidth;
+                        ctx.scale(scale, scale);
+
+                        // Calculate Iso Rotation (Same logic)
+                        const vx = Math.cos(obj.angle);
+                        const vy = Math.sin(obj.angle);
+                        const isoVx = vx - vy;
+                        const isoVy = (vx + vy) / 2;
+                        const isoAngle = Math.atan2(isoVy, isoVx);
+
+                        if (item.type === 'player' && !obj.inCar) {
+                            ctx.rotate(isoAngle + Math.PI / 2);
+                        } else {
+                            ctx.rotate(isoAngle + Math.PI / 2);
+                        }
+                    }
+
+
+                    // Draw Centered
+                    const drawW = img.naturalWidth;
+                    const drawH = img.naturalHeight;
+                    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+
+                    ctx.restore(); // Restore to un-rotated/scaled state (but still translated)
+
+                    // Bamboo Copter (if flying)
+                    if (item.type === 'player' && obj.isFlying && assets.bamboo_copter) {
+                        const copterImg = assets.bamboo_copter;
+                        if (copterImg.complete && copterImg.naturalWidth > 0) {
+                            const cSize = 60; // Fixed size
+
+                            ctx.save();
+                            // Position above head (approx)
+                            // Player is drawn centered at (0,0) which is feet.
+                            // We need to go up.
+                            ctx.translate(0, -45);
+
+                            // Spin
+                            const spinAngle = (Date.now() / 30) % (Math.PI * 2);
+
+                            // Apply Isometric Flattening *independent* of player rotation
+                            ctx.scale(1, 0.4);
+                            ctx.rotate(spinAngle);
+
+                            ctx.drawImage(copterImg, -cSize / 2, -cSize / 2, cSize, cSize);
+                            ctx.restore();
+                        }
+                    }
+
+                    ctx.restore();
+                }
+
+                // Draw Explosions / Pickups
+                if (item.type.startsWith('pickup')) {
+                    const img = assets[item.type];
+                    if (img && img.complete) {
+                        const p = item.obj;
+                        ctx.save();
+                        ctx.translate(item.isoX, item.isoY - 10 - p.floatY);
+                        // Scale down pickup (assumed 1024px source)
+                        const scale = 32 / img.naturalWidth;
+                        ctx.scale(scale, scale);
+                        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+                        ctx.restore();
+                    }
+                }
+
+                if (item.type === 'explosion') {
+                    const stain = item.obj;
+                    const img = assets.explosion;
+                    if (img) {
+                        ctx.save();
+                        ctx.translate(item.isoX, item.isoY); // Center?
+                        // Explosions are billboarded
+                        const scale = 1.0 + Math.sin(Date.now() / 50) * 0.1;
+                        ctx.scale(scale, scale);
+                        ctx.globalAlpha = 1.0;
+                        ctx.drawImage(img, -stain.size / 2, -stain.size / 2, stain.size, stain.size);
+                        ctx.restore();
+                    }
+                }
+
+                if (item.type === 'pickup') {
+                    const p = item.obj;
+                    ctx.save();
+                    ctx.translate(item.isoX, item.isoY); // Center
+                    // Bobbing
+                    const bob = Math.sin(Date.now() / 200) * 5;
+                    ctx.translate(0, bob - TILE_SIZE / 2); // Float above ground
+
+                    // Simple gun icon
+                    ctx.fillStyle = '#0f0';
+                    ctx.globalAlpha = 0.5;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(-10, -3, 20, 6);
+                    ctx.fillRect(-10, 0, 8, 8);
+                    ctx.fillRect(-10, 0, 8, 8);
+                    ctx.restore();
+                }
+
+                if (item.type === 'phone') {
+                    const p = item.obj;
+                    const isRinging = !mission.active;
+                    const img = assets.pay_phone;
+
+                    if (img && img.complete) {
+                        ctx.save();
+                        ctx.translate(item.isoX, item.isoY);
+
+                        // Ringing Shake Effect
+                        if (isRinging) {
+                            const shakeX = Math.sin(Date.now() / 50) * 2;
+                            ctx.translate(shakeX, 0);
+                        }
+
+                        // Draw Sprite
+                        // Asset is pre-scaled to ~80px height now
+                        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight + 15); // Pivot at bottom center
+
+                        // Phone Icon (Visual Feedback)
+                        if (isRinging) {
+                            ctx.font = "30px Arial";
+                            ctx.fillStyle = "white";
+                            ctx.strokeStyle = "black";
+                            ctx.lineWidth = 3;
+                            ctx.textAlign = "center";
+                            const bounce = Math.sin(Date.now() / 150) * 10;
+                            ctx.strokeText("📞", 0, -img.naturalHeight - 10 + bounce);
+                            ctx.fillText("📞", 0, -img.naturalHeight - 10 + bounce);
+                        }
+
+                        ctx.restore();
+                    } else {
+                        // Fallback while loading
+                        ctx.fillStyle = 'blue';
+                        ctx.fillRect(item.isoX - 10, item.isoY - 40, 20, 40);
+                    }
+                }
+            });
+
+            drawBullets();
+
+
+
+
+
+            drawBullets();
+
+            drawMissionTargetMarkers();
+
+            // Draw Mission Drop-off Zone
+            if (mission.active && mission.type === 'steal' && mission.dropOff) {
+                const iso = toIso(mission.dropOff.x, mission.dropOff.y);
+                ctx.save();
+                ctx.translate(iso.x, iso.y);
+
+                // Pulsating Marker
+                const pulse = 1 + Math.sin(Date.now() / 200) * 0.2;
+                ctx.scale(1, 0.5); // Isometric squash
+                ctx.beginPath();
+                ctx.arc(0, 0, 60 * pulse, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
+                ctx.fill();
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#00ff00';
+                ctx.stroke();
+
+                // Label
+                ctx.scale(1, 2); // Unsquash
+                ctx.fillStyle = "white";
+                ctx.font = "bold 20px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GARAGE", 0, -40 - (pulse * 10));
+
+                ctx.restore();
+            }
+
+            // Draw Navigation Arrow (UI Layer)
+            if (mission.active && mission.type === 'steal' && player.inCar && mission.dropOff) {
+                const dx = mission.dropOff.x - player.x;
+                const dy = mission.dropOff.y - player.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist > 100) {
+                    const isoP = toIso(player.x, player.y);
+                    const isoD = toIso(mission.dropOff.x, mission.dropOff.y);
+
+                    // Arrow always points from screen center (player) to destination iso pos
+                    const screenAngle = Math.atan2(isoD.y - isoP.y, isoD.x - isoP.x);
+
+                    const arrowDist = 100;
+                    const ax = isoP.x + Math.cos(screenAngle) * arrowDist;
+                    const ay = isoP.y + Math.sin(screenAngle) * arrowDist;
+
+                    ctx.save();
+                    ctx.translate(ax, ay);
+                    ctx.rotate(screenAngle);
+
+                    ctx.fillStyle = "#00ff00";
+                    ctx.strokeStyle = "black";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(15, 0);
+                    ctx.lineTo(-10, 10);
+                    ctx.lineTo(-10, -10);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+
+            // Draw Floating Texts
+            drawFloatingTexts();
+
+            ctx.restore();
+
+            // Draw HUD Elements (Screen Space)
+            drawMissionArrows();
+        }
+
+        function drawPhones(renderList) {
+            phones.forEach(p => {
+                const iso = toIso(p.x, p.y);
+
+                // Add to renderList for sorting
+                renderList.push({
+                    sortY: iso.y,
+                    type: 'phone',
+                    obj: p,
+                    isoX: iso.x,
+                    isoY: iso.y
+                });
+            });
+        }
+
+        // Floating Texts System
+        const floatingTexts = [];
+
+        function spawnFloatingText(x, y, text, color) {
+            floatingTexts.push({
+                x: x,
+                y: y,
+                text: text,
+                color: color || 'white',
+                life: 60, // 1 second
+                offsetY: 0
+            });
+        }
+
+        function drawFloatingTexts() {
+            ctx.save();
+            ctx.font = "bold 24px monospace";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "black";
+            ctx.shadowBlur = 4;
+            ctx.lineWidth = 3;
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.life--;
+                ft.offsetY -= 1; // Float up
+
+                if (ft.life <= 0) {
+                    floatingTexts.splice(i, 1);
+                    continue;
+                }
+
+                const iso = toIso(ft.x, ft.y);
+                const alpha = Math.min(1, ft.life / 20);
+
+                ctx.fillStyle = ft.color;
+                ctx.globalAlpha = alpha;
+
+                // Draw text at Iso Position + Offset
+                // 3D Text effect
+                ctx.strokeStyle = "black";
+                ctx.strokeText(ft.text, iso.x, iso.y - 60 + ft.offsetY);
+                ctx.fillText(ft.text, iso.x, iso.y - 60 + ft.offsetY);
+            }
+            ctx.restore();
+        }
+
+        let isDead = false;
+
+        function handlePlayerDeath() {
+            if (isDead) return;
+            isDead = true;
+
+            // Health Zero
+            player.health = 0;
+            document.getElementById('health').textContent = 0;
+
+            // UI
+            document.getElementById('wasted').style.display = 'block';
+
+            // Sound
+            playSound('failed');
+
+            // Reset Wanted
+            wantedLevel = 0;
+            document.getElementById('wanted').textContent = 0;
+
+            // Wait and Respawn
+            setTimeout(() => {
+                isDead = false;
+                player.health = 100;
+                player.x = 600;
+                player.y = 600;
+                player.speed = 0;
+                player.health = 100;
+                player.armor = 0;
+                updateUI();
+                document.getElementById('wasted').style.display = 'none';
+                document.getElementById('wasted').style.display = 'none';
+                document.getElementById('mission-failed').style.display = 'none';
+            }, 4000); // 4 seconds
+
+            // Mission Fail Check
+            if (mission.active) {
+                mission.active = false;
+                // Optional: Clear mission specific entities immediately or let reset handle it?
+                // Let's rely on reset, but clear specific target markers if any.
+
+                // Show "Mission Failed" and play sound slightly after "Wasted"
+                setTimeout(() => {
+                    document.getElementById('mission-failed').style.display = 'block';
+                    playSound('failed');
+                }, 1000); // 1 second after Wasted
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // Sounds (Using HTML5 Audio for local file compatibility)
+
+        const soundList = {
+            door: 'assets/sounds/car-door.mp3',
+            engine: 'assets/sounds/car-engine.mp3',
+            brake: 'assets/sounds/brake.mp3',
+            explosion: 'assets/sounds/explosion.mp3',
+            honk: 'assets/sounds/car-honk.mp3',
+            theme: 'assets/sounds/theme_song.mp3',
+            splash: 'assets/sounds/splash.mp3',
+            shoot: 'assets/sounds/gun-shot.mp3',
+            phone_ring: 'assets/sounds/phone_ring.wav',
+            mission_kill: 'assets/sounds/mission_kill.wav',
+            mission_steal: 'assets/sounds/mission_steal.wav',
+            accomplished: 'assets/sounds/accomplished.mp3',
+            failed: 'assets/sounds/failed.mp3',
+            siren: 'assets/sounds/police-siren.mp3'
+        };
+
+        // Unified Audio System (HTML5 Audio Backed)
+        // Web Audio API via fetch fails on local file:// execution due to CORS.
+        // We revert to HTML5 Audio but keep spatial logic.
+
+        const sounds = {};
+
+        function loadSounds() {
+            for (let key in soundList) {
+                const s = new Audio(soundList[key]);
+                s.preload = 'auto';
+                sounds[key] = s;
+                // console.log("Loaded sound: " + key);
+            }
+        }
+
+        function playSound(key, pos = null, loop = false, vol = 1.0) {
+            // Handle legacy calls (key, loop, vol) where pos is boolean
+            if (typeof pos === 'boolean') {
+                vol = loop !== undefined ? loop : 1.0;
+                loop = pos;
+                pos = null;
+            }
+
+            if (!sounds[key]) return null;
+
+            // Spatial Audio Logic
+            let finalVol = vol;
+            if (pos) {
+                const dist = Math.hypot(player.x - pos.x, player.y - pos.y);
+                const maxDist = 600;
+
+                if (dist > maxDist) return null; // Too far
+
+                // Linear fade
+                finalVol = vol * (1 - dist / maxDist);
+                if (finalVol <= 0.01) return null;
+            }
+
+            // Clone for overlapping SFX
+            let audio;
+            if (key === 'theme' || key === 'accomplished') {
+                audio = sounds[key];
+            } else {
+                audio = sounds[key].cloneNode();
+            }
+
+            audio.loop = loop;
+            audio.volume = Math.max(0, Math.min(1, finalVol));
+
+            // Engine specific: reset rate
+            if (key === 'engine') {
+                audio.playbackRate = 1.0;
+            }
+
+            audio.currentTime = 0;
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    // Autoplay policy or interaction required
+                });
+            }
+            return audio;
+        }
+
+        // Interaction listener (optional for HTML5 Audio, but good practice)
+        window.addEventListener('click', () => {
+            // Unlock logic if needed
+        }, { once: true });
+
+        let engineSound = null;
+
+        // ... existing loadAssets ...
+
+        loadAssets(() => {
+            console.log("GTA Assets Loaded");
+            loadSounds();
+            spawnNPCs();
+            spawnCars();
+            spawnPhones(); // Initialize Phones Once
+            // DEBUG: Spawn pickups near player to check transparency
+            pickups.push({ x: 650, y: 600, type: 'health', floatY: 0, active: true, spawnTime: Date.now() });
+            pickups.push({ x: 550, y: 600, type: 'armor', floatY: 0, active: true, spawnTime: Date.now() });
+
+
+            // startMission(); // Init Missions - Removed for Pay Phone Logic
+
+            resize();
+            loop();
+        });
+
+        // Update loop integrations
+        // ... (We need to insert calls in update()) ...
+
+    </script>
+</body>
+
+</html>

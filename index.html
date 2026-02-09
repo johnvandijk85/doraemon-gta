@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Doraemon Presentation</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.css">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- Slide 1: Title (Sound: Intro) -->
+      <section data-sound="intro">
+        <div class="doraemon-bell"></div>
+        <img src="assets/images/doraemon.png"
+          style="width: 200px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.5);" alt="Doraemon">
+        <h1>Doraemon</h1>
+        <h3>The Robot Cat from the Future</h3>
+        <p>By Antigravity</p>
+      </section>
+
+      <!-- Slide 2: Introduction -->
+      <section>
+        <h2>Who is Doraemon?</h2>
+        <div class="slide-content-box" style="display: flex; align-items: center; justify-content: center; gap: 20px;">
+          <img src="assets/images/doraemon.png" style="width: 150px; border-radius: 10px;" alt="Doraemon">
+          <ul>
+            <li>A robotic cat from the 22nd century.</li>
+            <li>Sent back in time to help Nobita Nobi.</li>
+            <li>Born: September 3, 2112.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Slide 3: Characters (Sound: Boing) -->
+      <section data-sound="boing">
+        <h2>Main Characters</h2>
+        <div style="display: flex; justify-content: space-around; flex-wrap: wrap;">
+          <div style="text-align: center;">
+            <img src="assets/images/nobita.png" style="width: 120px; border-radius: 50%; border: 3px solid #FFD700;">
+            <h4>Nobita</h4>
+            <small>The lazy but kind protagonist</small>
+          </div>
+          <div style="text-align: center;">
+            <img src="assets/images/shizuka.png" style="width: 120px; border-radius: 50%; border: 3px solid #FF69B4;">
+            <h4>Shizuka</h4>
+            <small>Smart and kind</small>
+          </div>
+          <div style="text-align: center;">
+            <img src="assets/images/gian.png" style="width: 120px; border-radius: 50%; border: 3px solid #FFA500;">
+            <h4>Gian</h4>
+            <small>The neighborhood bully</small>
+          </div>
+          <div style="text-align: center;">
+            <img src="assets/images/suneo.png" style="width: 120px; border-radius: 50%; border: 3px solid #87CEEB;">
+            <h4>Suneo</h4>
+            <small>The rich show-off</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 4: Gadgets (Sound: Gadget) -->
+      <section data-sound="gadget">
+        <h2>Iconic Gadgets</h2>
+        <div class="slide-content-box"
+          style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="assets/images/anywhere_door.png"
+              style="width: 80px; height: 80px; object-fit: cover; border-radius: 10px;">
+            <div>
+              <strong>Anywhere Door:</strong><br>Go anywhere instantly!
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="assets/images/bamboo_copter.png"
+              style="width: 80px; height: 80px; object-fit: cover; border-radius: 10px;">
+            <div>
+              <strong>Bamboo Copter:</strong><br>Fly nicely in the sky.
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div
+              style="width: 80px; height: 80px; background: #ddd; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+              🕰️</div>
+            <div>
+              <strong>Time Machine:</strong><br>Located in Nobita's desk.
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="assets/images/memory_bread.png"
+              style="width: 80px; height: 80px; object-fit: cover; border-radius: 10px;">
+            <div>
+              <strong>Memory Bread:</strong><br>Eat to remember exams!
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 5: Fun (Sound: Horn) -->
+      <section data-sound="horn">
+        <h2>Did you know?</h2>
+        <p>Doraemon's ears were bitten off by robotic mice!</p>
+        <p>That's why he is afraid of mice.</p>
+        <button onclick="playSound('horn')"
+          style="font-size: 20px; padding: 10px; border-radius: 10px; background: orange; cursor: pointer;">Honk
+          Horn!</button>
+      </section>
+
+      <!-- Slide 6: End -->
+      <section>
+        <h2>Thank You!</h2>
+        <div class="doraemon-bell"></div>
+        <p style="margin-top: 20px;">
+          <a href="game.html" target="_blank"
+            style="color: #d93a2c; font-weight: bold; text-decoration: none; border-bottom: 2px solid #d93a2c;">
+            Play Doraemon Memory Match! 🎮
+          </a>
+        </p>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Sound Effects -->
+  <audio id="sound-intro" src="assets/sounds/intro.ogg"></audio>
+  <audio id="sound-gadget" src="assets/sounds/gadget.ogg"></audio>
+  <audio id="sound-boing" src="assets/sounds/boing.ogg"></audio>
+  <audio id="sound-horn" src="assets/sounds/horn.ogg"></audio>
+  <audio id="sound-theme" src="assets/sounds/theme_song.mp3" loop volume="0.3"></audio>
+
+  <!-- Start Overlay for Autoplay Policy -->
+  <div id="start-overlay"
+    style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; justify-content: center; align-items: center; color: white; flex-direction: column;">
+    <div class="doraemon-bell" style="transform: scale(2); margin-bottom: 40px;"></div>
+    <h1>Click to Start Presentation</h1>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.js"></script>
+  <script>
+    // Initialize Reveal.js
+    Reveal.initialize();
+
+    // Start Overlay Logic
+    document.getElementById('start-overlay').addEventListener('click', function () {
+      this.style.opacity = '0';
+      setTimeout(() => this.style.display = 'none', 500);
+
+      // Play Theme Song
+      const themeAudio = document.getElementById('sound-theme');
+      if (themeAudio) {
+        themeAudio.volume = 0.2; // Lower volume for background
+        themeAudio.play().catch(e => console.log("Theme play failed:", e));
+      }
+
+      // Play Intro Sound if we are on the first slide
+      if (Reveal.getCurrentSlide().getAttribute('data-sound') === 'intro') {
+        playSound('intro');
+      }
+    });
+
+    // Sound Logic through Reveal.js events
+    Reveal.on('slidechanged', event => {
+      // event.currentSlide, event.previousSlide
+      const currentSlide = event.currentSlide;
+      const soundName = currentSlide.getAttribute('data-sound');
+
+      if (soundName) {
+        playSound(soundName);
+      }
+    });
+
+    function playSound(name) {
+      const audio = document.getElementById('sound-' + name);
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(e => console.log("Audio play failed (interaction needed?):", e));
+      }
+    }
+  </script>
+</body>
+
+</html>

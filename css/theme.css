@@ -1,0 +1,68 @@
+/* Doraemon Theme */
+:root {
+  --doraemon-blue: #0096DF;
+  --doraemon-red: #EE1C25;
+  --doraemon-white: #FFFFFF;
+  --doraemon-yellow: #FCC800; /* Bell color */
+}
+
+body {
+  background-color: var(--doraemon-blue);
+  background-image: radial-gradient(circle at center, var(--doraemon-white) 0%, var(--doraemon-blue) 70%);
+}
+
+.reveal {
+  color: #333;
+}
+
+.reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6 {
+  color: var(--doraemon-red);
+  text-shadow: 2px 2px 0px white;
+  font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif; /* Playful font */
+}
+
+.reveal p, .reveal li {
+  font-family: 'Verdana', sans-serif;
+}
+
+/* Bell Logo */
+.doraemon-bell {
+  width: 50px;
+  height: 50px;
+  background: var(--doraemon-yellow);
+  border-radius: 50%;
+  border: 2px solid #333;
+  margin: 0 auto 20px;
+  position: relative;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+}
+
+.doraemon-bell::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 2px;
+  background: #333;
+}
+
+.doraemon-bell::before {
+  content: '';
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  background: #333;
+  border-radius: 50%;
+}
+
+.slide-content-box {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 15px;
+  border: 4px solid var(--doraemon-red);
+}

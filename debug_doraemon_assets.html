@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+
+<body style="background: #333; color: #fff; font-family: monospace;">
+    <h1>Asset Load Debugger</h1>
+    <div id="results">Running...</div>
+    <script>
+        const assets = [
+            'assets/images/bamboo_copter.png',
+            'assets/images/anywhere_door.png',
+            'assets/images/dorayaki.png'
+        ];
+
+        const results = document.getElementById('results');
+        results.innerHTML = '';
+
+        assets.forEach(src => {
+            const img = new Image();
+            img.onload = () => {
+                results.innerHTML += `<div style="color: lime">[OK] ${src}: ${img.width}x${img.height}</div>`;
+            };
+            img.onerror = (e) => {
+                results.innerHTML += `<div style="color: red">[FAIL] ${src}: Error loading</div>`;
+            };
+            img.src = src;
+        });
+    </script>
+</body>
+
+</html>

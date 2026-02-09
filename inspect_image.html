@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+    <img id="test" src="assets/images/cave_enemy_bat.png"
+        onload="console.log('DIMENSIONS: ' + this.naturalWidth + 'x' + this.naturalHeight)">
+    <script>
+        // Also log to document body for screenshot
+        const img = document.getElementById('test');
+        img.onload = () => {
+            document.body.innerText = 'DIMENSIONS: ' + img.naturalWidth + 'x' + img.naturalHeight;
+        };
+    </script>
+</body>
+
+</html>

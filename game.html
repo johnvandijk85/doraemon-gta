@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doraemon Memory Match</title>
+    <style>
+        :root {
+            --primary: #0096e7;
+            /* Doraemon Blue */
+            --secondary: #d93a2c;
+            /* Red */
+            --accent: #fec21ea8;
+            /* Bell Gold */
+            --bg: #f0f8ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: var(--primary);
+            text-shadow: 2px 2px 0px white;
+            margin: 20px 0 10px;
+        }
+
+        p {
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        .game-info {
+            display: flex;
+            gap: 20px;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            width: 90%;
+            max-width: 600px;
+            perspective: 1000px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background-color: transparent;
+            width: 100%;
+            aspect-ratio: 1;
+            /* Square cards */
+            perspective: 1000px;
+            cursor: pointer;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card.matched .card-inner {
+            /* Keep it flipped */
+            transform: rotateY(180deg);
+        }
+
+        /* Optional: Add a glow or effect for matched cards */
+        .card.matched .card-front {
+            box-shadow: 0 0 15px var(--accent);
+            border: 2px solid var(--accent);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .card-back {
+            background-image: url('assets/images/card_back.png');
+            background-size: cover;
+            background-position: center;
+            background-color: var(--primary);
+            /* Fallback */
+            transform: rotateY(0deg);
+            border: 2px solid white;
+        }
+
+        .card-front {
+            background-color: white;
+            color: black;
+            transform: rotateY(180deg);
+            border: 2px solid #ddd;
+        }
+
+        .card-front img {
+            width: 90%;
+            height: 90%;
+            object-fit: contain;
+        }
+
+        button {
+            padding: 10px 25px;
+            font-size: 1.1rem;
+            background-color: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: transform 0.1s, background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #b92b1e;
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* Modal for Win */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            text-align: center;
+        }
+
+        .modal h2 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: var(--accent);
+            text-shadow: 2px 2px 4px #000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Doraemon Memory Match</h1>
+    <div class="game-info">
+        <span>Moves: <b id="move-count">0</b></span>
+        <span>Pairs: <b id="pair-count">0</b>/10</span>
+    </div>
+
+    <div class="game-board" id="game-board">
+        <!-- Cards injected by JS -->
+    </div>
+
+    <button onclick="resetGame()">Reset Game</button>
+
+    <div id="win-modal" class="modal">
+        <h2>You Won!</h2>
+        <p>Great job helping Doraemon with his memory!</p>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="resetGame()">Play Again</button>
+            <button onclick="window.location.href='platformer.html'" style="background-color: #0096e7;">Start Adventure!
+                🏃‍♂️</button>
+        </div>
+    </div>
+
+    <!-- Audio Assets -->
+    <audio id="snd-flip" src="assets/sounds/intro.ogg"></audio>
+    <!-- Using intro short clip for flip/start if valid, or just generic check -->
+    <audio id="snd-match" src="assets/sounds/gadget.ogg"></audio>
+    <audio id="snd-fail" src="assets/sounds/boing.ogg"></audio>
+    <audio id="snd-win" src="assets/sounds/horn.ogg"></audio>
+
+    <script>
+        const assets = [
+            'doraemon.png',
+            'nobita.png',
+            'shizuka.png',
+            'gian.png',
+            'suneo.png',
+            'anywhere_door.png',
+            'bamboo_copter.png',
+            'memory_bread.png',
+            'time_machine.png',
+            'dorayaki.png'
+        ];
+
+        let cards = []; // Will hold double the assets
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        let moves = 0;
+        let pairsFound = 0;
+
+        const boardElement = document.getElementById('game-board');
+        const moveElement = document.getElementById('move-count');
+        const pairElement = document.getElementById('pair-count');
+        const winModal = document.getElementById('win-modal');
+
+        // Sounds
+        const sndMatch = document.getElementById('snd-match');
+        const sndFail = document.getElementById('snd-fail');
+        const sndWin = document.getElementById('snd-win');
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function createCard(imageName) {
+            const card = document.createElement('div');
+            card.classList.add('card');
+            card.dataset.name = imageName;
+
+            card.innerHTML = `
+                <div class="card-inner">
+                    <div class="card-face card-back"></div>
+                    <div class="card-face card-front">
+                        <img src="assets/images/${imageName}" alt="Card Image">
+                    </div>
+                </div>
+            `;
+
+            card.addEventListener('click', flipCard);
+            return card;
+        }
+
+        function initGame() {
+            // Duplicate and shuffle
+            cards = [...assets, ...assets];
+            shuffle(cards);
+
+            // Clear board
+            boardElement.innerHTML = '';
+
+            // Generate HTML
+            cards.forEach(image => {
+                const cardElement = createCard(image);
+                boardElement.appendChild(cardElement);
+            });
+
+            // Reset state
+            resetState();
+            moves = 0;
+            pairsFound = 0;
+            updateUI();
+            winModal.style.display = 'none';
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === firstCard) return;
+
+            this.classList.add('flipped');
+
+            if (!hasFlippedCard) {
+                // First card
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            // Second card
+            secondCard = this;
+            moves++;
+            updateUI();
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.name === secondCard.dataset.name;
+
+            isMatch ? disableCards() : unflipCards();
+        }
+
+        function disableCards() {
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+
+            // Mark visually as matched if needed (CSS)
+            firstCard.classList.add('matched');
+            secondCard.classList.add('matched');
+
+            playSound(sndMatch);
+            pairsFound++;
+            updateUI();
+
+            if (pairsFound === assets.length) {
+                setTimeout(() => {
+                    playSound(sndWin);
+                    winModal.style.display = 'flex';
+                }, 500);
+            }
+
+            resetBoard();
+        }
+
+        function unflipCards() {
+            lockBoard = true;
+            playSound(sndFail);
+
+            setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                resetBoard();
+            }, 1000);
+        }
+
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        function resetState() {
+            resetBoard();
+            // Remove all flipped classes
+            const allCards = document.querySelectorAll('.card');
+            allCards.forEach(card => {
+                card.classList.remove('flipped');
+                card.classList.remove('matched');
+                card.addEventListener('click', flipCard);
+            });
+        }
+
+        function resetGame() {
+            initGame();
+        }
+
+        function updateUI() {
+            moveElement.innerText = moves;
+            pairElement.innerText = pairsFound;
+        }
+
+        function playSound(audioEl) {
+            if (audioEl) {
+                audioEl.currentTime = 0;
+                audioEl.play().catch(e => console.log('Sound blocked', e));
+            }
+        }
+
+        // Initialize on load
+        initGame();
+
+    </script>
+</body>
+
+</html>

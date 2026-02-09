@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doraemon's Adventure</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(#87CEEB, #E0F7FA);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            color: #d93a2c;
+            font-weight: bold;
+            text-shadow: 2px 2px 0px white;
+            pointer-events: none;
+        }
+
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        /* Modal for Win/Loss */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            text-align: center;
+        }
+
+        .modal h2 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: #fec21ea8;
+        }
+
+        #level-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 10;
+        }
+
+        button {
+            padding: 10px 25px;
+            font-size: 1.2rem;
+            background-color: #d93a2c;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background-color: #b92b1e;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-layer">Score: <span id="score">0</span></div>
+    <div id="level-indicator">Level 1: The Field</div>
+    <canvas id="game-canvas"></canvas>
+    <div id="controls-hint">Use Arrow Keys to Move & Jump</div>
+
+    <div id="game-over-modal" class="modal">
+        <h2 id="modal-title">Game Over</h2>
+        <p id="modal-message">Oh no! Look out for mice!</p>
+        <button onclick="retryLevel()">Try Again</button>
+        <button onclick="window.location.href='index.html'"
+            style="background-color: #0096e7; margin-left: 10px;">Home</button>
+    </div>
+
+    <!-- Preload Assets -->
+    <img id="img-doraemon" src="assets/images/doraemon_sheet.png?t=3" style="display:none">
+    <img id="img-tileset" src="assets/images/tileset.png?t=3" style="display:none">
+    <img id="img-ground" src="assets/images/ground_texture.png?t=5" style="display:none">
+    <img id="img-deep-dirt" src="assets/images/deep_dirt.png?t=4" style="display:none">
+    <img id="img-brick" src="assets/images/brick_texture.png?t=1" style="display:none">
+
+    <!-- Cave Assets -->
+    <img id="img-cave-bg" src="assets/images/cave_bg.png?t=1" style="display:none">
+    <img id="img-cave-ground" src="assets/images/cave_ground.png?t=1" style="display:none">
+    <img id="img-cave-brick" src="assets/images/cave_brick.png?t=1" style="display:none">
+    <img id="img-cave-enemy" src="assets/images/cave_enemy_bat.png?t=1" style="display:none">
+    <img id="img-cave-door" src="assets/images/cave_door_stone.png?t=1" style="display:none">
+
+    <!-- Sky Assets -->
+    <img id="img-sky-bg" src="assets/images/sky_bg.png?t=1" style="display:none">
+    <img id="img-sky-ground" src="assets/images/sky_ground.png?t=1" style="display:none">
+    <img id="img-sky-brick" src="assets/images/sky_brick.png?t=1" style="display:none">
+    <img id="img-sky-enemy" src="assets/images/sky_enemy.png?t=1" style="display:none">
+    <img id="img-sky-door" src="assets/images/sky_door.png?t=1" style="display:none">
+
+    <!-- Castle Assets -->
+    <img id="img-castle-bg" src="assets/images/castle_bg.png?t=1" style="display:none">
+    <img id="img-castle-ground" src="assets/images/castle_ground.png?t=1" style="display:none">
+    <img id="img-castle-brick" src="assets/images/castle_brick.png?t=1" style="display:none">
+    <img id="img-castle-enemy" src="assets/images/castle_enemy.png?t=1" style="display:none">
+    <img id="img-castle-door" src="assets/images/castle_door.png?t=1" style="display:none">
+
+    <img id="img-mouse" src="assets/images/mouse_enemy.png?t=3" style="display:none">
+    <img id="img-dorayaki" src="assets/images/dorayaki.png?t=3" style="display:none">
+    <img id="img-door" src="assets/images/anywhere_door.png?t=3" style="display:none">
+
+    <audio id="snd-jump" src="assets/sounds/boing.ogg"></audio>
+    <audio id="snd-collect" src="assets/sounds/gadget.ogg"></audio>
+    <audio id="snd-win" src="assets/sounds/horn.ogg"></audio>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Fullscreen Resize Logic
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize(); // Initial call
+        const scoreEl = document.getElementById('score');
+        const levelEl = document.getElementById('level-indicator');
+        const modal = document.getElementById('game-over-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMsg = document.getElementById('modal-message');
+
+        const sJump = document.getElementById('snd-jump');
+        const sCollect = document.getElementById('snd-collect');
+        const sWin = document.getElementById('snd-win');
+
+        const GRAVITY = 0.6;
+        const FRICTION = 0.8;
+        const JUMP_FORCE = -15;
+        const MOVE_SPEED = 5;
+
+        const heroImg = document.getElementById('img-doraemon');
+        const tileImg = document.getElementById('img-tileset');
+        const groundImg = document.getElementById('img-ground');
+        const deepDirtImg = document.getElementById('img-deep-dirt');
+        const brickImg = document.getElementById('img-brick');
+        const mouseImg = document.getElementById('img-mouse');
+        const dorayakiImg = document.getElementById('img-dorayaki');
+        const doorImg = document.getElementById('img-door');
+
+        // Cave Assets
+        const caveBgImg = document.getElementById('img-cave-bg');
+        const caveGroundImg = document.getElementById('img-cave-ground');
+        const caveBrickImg = document.getElementById('img-cave-brick');
+        const caveEnemyImg = document.getElementById('img-cave-enemy');
+        const caveDoorImg = document.getElementById('img-cave-door');
+
+        // Sky Assets
+        const skyBgImg = document.getElementById('img-sky-bg');
+        const skyGroundImg = document.getElementById('img-sky-ground');
+        const skyBrickImg = document.getElementById('img-sky-brick');
+        const skyEnemyImg = document.getElementById('img-sky-enemy');
+        const skyDoorImg = document.getElementById('img-sky-door');
+
+        // Castle Assets
+        const castleBgImg = document.getElementById('img-castle-bg');
+        const castleGroundImg = document.getElementById('img-castle-ground');
+        const castleBrickImg = document.getElementById('img-castle-brick');
+        const castleEnemyImg = document.getElementById('img-castle-enemy');
+        const castleDoorImg = document.getElementById('img-castle-door');
+
+        let currentTheme = {
+            bg: null,
+            ground: groundImg,
+            brick: brickImg,
+            enemy: mouseImg,
+            enemyFrames: 1, // Number of animation frames
+            enemyFrameSpeed: 10, // Frames per update (lower is faster)
+            enemySpriteHeight: 0, // 0 = use naturalHeight
+            enemySpriteYOffset: 0, // Vertical offset for sprite sheet
+            door: doorImg,
+            enemyFacingLeft: true, // Default for mouse
+            bgColor: '#87CEEB'
+        };
+
+        let score = 0;
+        let gameOver = false;
+        let gameWin = false;
+        let cameraX = 0;
+        let gameScale = 1;
+        const LEVEL_HEIGHT = 600; // 12 rows * 50
+        const TILE_SIZE = 50;
+        let currentLevelIndex = 0;
+
+        // Level Designs
+        const level1 = [ // The Field (Tutorial)
+            "                                                  ",
+            "                                                  ",
+            "                                                  ",
+            "                                                  ",
+            "                                              9   ",
+            "                    3   3                         ",
+            "      3           22222222           3            ",
+            "    22222                            222          ",
+            "          3   22             22   4               ",
+            "         222        4      4        2222          ",
+            " 1111111111111111111111111111111111111111111111111 ",
+            " 1111111111111111111111111111111111111111111111111 "
+        ];
+
+        const level2 = [ // The Cave (Underground)
+            "                                                                                          ",
+            "                                                                                          ",
+            "                                                                                      9   ",
+            "       3                                           3                                      ",
+            "     22222           222                         22222        222                         ",
+            "             222             4        222                  4                              ",
+            "    3              222     22222    22222                22222                            ",
+            "   222        4          4                    4      4                   222      3       ",
+            " 11111111111111111111111111      1111111111111111111111111111111111      111111111111111  ",
+            " 11111111111111111111111111      1111111111111111111111111111111111      111111111111111  ",
+            " 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111  ",
+            " 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111  "
+        ];
+
+        const level3 = [ // The Sky (Cloud Platforming) - Lots of pits
+            "                                                                                                          ",
+            "                                                                                                          ",
+            "                                                                                                       9  ",
+            "       3                  3                     3                     3                                   ",
+            "     22222              222                   222                   22222          222                    ",
+            "            222                   4    222               4                     4                          ",
+            "                   222         22222         222      22222      222      22222       3                   ",
+            "         3                                                                                      222       ",
+            "   11111111    111111    1111    11111111    111111    1111    111111    111111    11111111111111         ",
+            "                                                                                                          ",
+            "                                                                                                          ",
+            "                                                                                                          "
+        ];
+
+        const level4 = [ // The Castle (Final Challenge) - Long and Hard
+            "                                                                                                                                              ",
+            "                                                                                                                                              ",
+            "                                                                                                                                          9   ",
+            "       3           3               3           3                                   3               3           3                              ",
+            "     22222       22222           22222       22222           22222               22222           22222       22222           22222            ",
+            "           4               4               4           222             4               4               4               4                          ",
+            "   222   222   222   222   222   222   222   222   22222   222   222   222   222   222   222   222   222   222   222   222   222   222   3      ",
+            "                                                                                                                                                  ",
+            " 1111111111    1111111111      1111      11111111      1111      1111111111      1111      11111111      1111      111111111111111111111      ",
+            "               1111111111                                                                                                                     ",
+            "               1111111111                                                                                                                     ",
+            "                                                                                                                                              "
+        ];
+
+        const levels = [level1, level2, level3, level4];
+        let currentLevelMap = [];
+
+        // Player
+        const player = {
+            x: 100,
+            y: 300,
+            width: 50,
+            height: 50,
+            dx: 0,
+            dy: 0,
+            grounded: false,
+            facingRight: true
+        };
+
+        // Animation State
+        const ANIM_SPEED = 10;
+        let animTimer = 0;
+        let currentFrame = 0;
+
+
+
+        let platforms = [];
+        let items = [];
+        let enemies = [];
+        let exitDoor = null;
+
+        function initLevel() {
+            platforms = [];
+            items = [];
+            enemies = [];
+            exitDoor = null;
+
+            // Reset player position
+            player.x = 100;
+            player.y = 300;
+            player.dx = 0;
+            player.dy = 0;
+            player.grounded = false;
+
+            // Update Level Name
+            let levelName = "";
+            if (currentLevelIndex === 0) levelName = "Level 1: The Field";
+            else if (currentLevelIndex === 1) levelName = "Level 2: The Cave";
+            else if (currentLevelIndex === 2) levelName = "Level 3: The Sky";
+            else if (currentLevelIndex === 3) levelName = "Level 4: The Castle";
+
+            if (levelEl) levelEl.innerText = levelName;
+
+            // Set Theme
+            if (currentLevelIndex === 1) { // Cave
+                currentTheme.bg = caveBgImg;
+                currentTheme.ground = caveGroundImg;
+                currentTheme.brick = caveBrickImg;
+                currentTheme.enemy = caveEnemyImg;
+                currentTheme.enemyFrames = 4; // Bat has 4 frames
+                currentTheme.enemyFrameSpeed = 5;
+                // Bat sprite is likely 1024x1024 with 4 frames. 
+                // Assuming it's a strip, each frame is 256px wide.
+                // Assuming centered vertically, we crop 256px height from center.
+                currentTheme.enemySpriteHeight = 256;
+                currentTheme.enemySpriteYOffset = 384; // (1024 - 256) / 2
+                currentTheme.door = caveDoorImg;
+                currentTheme.enemyFacingLeft = false; // Bat faces right
+                currentTheme.bgColor = '#222';
+            } else if (currentLevelIndex === 2) { // Sky
+                currentTheme.bg = skyBgImg;
+                currentTheme.bgColor = '#87CEEB';
+
+                currentTheme.ground = skyBrickImg; // Use brick for ground for better visibility
+                currentTheme.brick = skyBrickImg;
+                currentTheme.enemy = skyEnemyImg;
+                currentTheme.enemyFrames = 1;
+                currentTheme.enemyFrameSpeed = 10;
+                currentTheme.enemySpriteHeight = 0;
+                currentTheme.enemySpriteYOffset = 0;
+                currentTheme.door = skyDoorImg;
+                currentTheme.enemyFacingLeft = true; // Bird faces left
+            } else if (currentLevelIndex === 3) { // Castle
+                currentTheme.bg = castleBgImg;
+                currentTheme.bgColor = '#2F4F4F';
+
+                currentTheme.ground = castleGroundImg;
+                currentTheme.brick = castleBrickImg;
+                currentTheme.enemy = castleEnemyImg;
+                currentTheme.enemyFrames = 1; // Animation logic handles single frame or wobbly ghost
+                currentTheme.enemyFrameSpeed = 10;
+                currentTheme.enemySpriteHeight = 0;
+                currentTheme.enemySpriteYOffset = 0;
+                currentTheme.door = castleDoorImg;
+                currentTheme.enemyFacingLeft = true;
+            } else { // Default (Field)
+                currentTheme.bg = null;
+                currentTheme.ground = groundImg;
+                currentTheme.brick = brickImg;
+                currentTheme.enemy = mouseImg;
+                currentTheme.enemyFrames = 1;
+                currentTheme.enemyFrameSpeed = 10;
+                currentTheme.enemySpriteHeight = 0;
+                currentTheme.enemySpriteYOffset = 0;
+                currentTheme.door = doorImg;
+                currentTheme.enemyFacingLeft = true;
+                currentTheme.bgColor = '#87CEEB';
+            }
+
+            currentLevelMap = levels[currentLevelIndex];
+
+            for (let row = 0; row < currentLevelMap.length; row++) {
+                for (let col = 0; col < currentLevelMap[row].length; col++) {
+                    const char = currentLevelMap[row][col];
+                    const x = col * TILE_SIZE;
+                    const y = row * TILE_SIZE;
+
+                    if (char === '1') {
+                        // Check if block above is also '1' (ground)
+                        let isDeep = false;
+                        if (row > 0 && currentLevelMap[row - 1][col] === '1') {
+                            isDeep = true;
+                        }
+                        platforms.push({ x, y, width: TILE_SIZE, height: TILE_SIZE, type: 'ground', isDeep });
+                    } else if (char === '2') {
+                        platforms.push({ x, y, width: TILE_SIZE, height: TILE_SIZE, type: 'brick' });
+                    } else if (char === '3') {
+                        items.push({ x, y: y + 10, width: 30, height: 30, type: 'dorayaki', collected: false });
+                    } else if (char === '4') {
+                        // Desynchronize Enemies
+                        const speed = (Math.random() > 0.5 ? 2 : -2); // Random direction
+                        const startOffset = Math.random() * 50; // Random offset in patrol
+                        enemies.push({ x: x + startOffset, y: y + 10, width: 40, height: 30, type: 'mouse', speed: speed, startX: x, range: 100 });
+                    } else if (char === '9') {
+                        exitDoor = { x, y: y - 10, width: 60, height: 80 };
+                    }
+                }
+            }
+        }
+
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        function gameLoop() {
+            update();
+            draw();
+        }
+
+        function update() {
+            if (gameOver || gameWin) return;
+
+            if (keys['ArrowRight']) {
+                player.dx = MOVE_SPEED;
+                player.facingRight = true;
+            } else if (keys['ArrowLeft']) {
+                player.dx = -MOVE_SPEED;
+                player.facingRight = false;
+            } else {
+                player.dx *= FRICTION;
+            }
+
+            if ((keys['ArrowUp'] || keys['Space']) && player.grounded) {
+                player.dy = JUMP_FORCE;
+                player.grounded = false;
+                playSound(sJump);
+            }
+
+            player.dy += GRAVITY;
+            player.x += player.dx;
+            player.y += player.dy;
+
+            player.grounded = false;
+            for (let plat of platforms) {
+                if (checkCollision({ ...player, width: player.width, height: player.height }, plat)) {
+                    const prevY = player.y - player.dy;
+                    if (prevY + player.height <= plat.y) {
+                        player.grounded = true;
+                        player.dy = 0;
+                        player.y = plat.y - player.height;
+                    }
+                    else if (prevY >= plat.y + plat.height) {
+                        player.dy = 0;
+                        player.y = plat.y + plat.height;
+                    }
+                    else {
+                        player.dx = 0;
+                        if (player.x < plat.x) player.x = plat.x - player.width;
+                        else player.x = plat.x + plat.width;
+                    }
+                }
+            }
+            if (player.x < 0) player.x = 0;
+
+            // Camera Logic with Scale
+            gameScale = canvas.height / LEVEL_HEIGHT;
+
+            // Visible width in world units
+            const visibleWidth = canvas.width / gameScale;
+
+            cameraX = player.x - visibleWidth / 2 + player.width / 2;
+            if (cameraX < 0) cameraX = 0;
+
+            const maxScroll = (currentLevelMap[0].length * TILE_SIZE) - visibleWidth;
+            if (cameraX > maxScroll) cameraX = maxScroll;
+
+            items.forEach(item => {
+                if (!item.collected && checkCollision(player, item)) {
+                    item.collected = true;
+                    score += 100;
+                    scoreEl.innerText = score;
+                    playSound(sCollect);
+                }
+            });
+
+            enemies.forEach(enemy => {
+                enemy.x += enemy.speed;
+                if (enemy.x > enemy.startX + enemy.range || enemy.x < enemy.startX - enemy.range) {
+                    enemy.speed *= -1;
+                }
+
+                // Tighter Hitbox (Visual is 40x30, Hitbox is 24x20)
+                const enemyHitbox = {
+                    x: enemy.x + 8,
+                    y: enemy.y + 10,
+                    width: enemy.width - 16,
+                    height: enemy.height - 10
+                };
+
+                // Player Hurtbox (Visual is 50x50, Hurtbox is 30x40)
+                const playerHurtbox = {
+                    x: player.x + 10,
+                    y: player.y + 5,
+                    width: player.width - 20,
+                    height: player.height - 5
+                };
+
+                if (checkCollision(playerHurtbox, enemyHitbox)) {
+                    // Stomp Mechanic:
+                    // Check if player is falling (vy > 0)
+                    // Check if player's bottom is roughly above enemy center vertically
+                    // The overlap is already confirmed by checkCollision
+                    const playerBottom = player.y + player.height;
+                    const enemyTop = enemy.y;
+                    const stompThreshold = enemy.y + enemy.height * 0.5; // Hit must be in top half
+
+                    if (player.dy > 0 && playerBottom < stompThreshold) {
+                        // Succesful Stomp
+                        playSound(sJump); // Reuse jump sound for bounce, or add sStomp
+                        player.dy = -10; // Bounce
+
+                        // Score reward
+                        score += 200;
+                        scoreEl.innerText = score;
+
+                        // Remove enemy
+                        // Since we are iterating, we need to handle removal carefully.
+                        // Filter loop? Or mark for deletion?
+                        // Let's mark it as dead and filter later, or splice if iterating backwards.
+                        // Since we are in forEach, better to mark 'dead' and filter.
+                        enemy.dead = true;
+                    } else {
+                        // Normal damage/Death
+                        triggerGameOver();
+                    }
+                }
+            });
+            // Cleanup dead enemies
+            enemies = enemies.filter(e => !e.dead);
+
+            if (exitDoor && checkCollision(player, exitDoor)) triggerWin();
+            if (player.y > canvas.height + 100) triggerGameOver();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Background
+            if (currentTheme.bg && currentTheme.bg.complete) {
+                // Parallax background or stretched
+                ctx.drawImage(currentTheme.bg, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = currentTheme.bgColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            ctx.save();
+            ctx.scale(gameScale, gameScale);
+            ctx.translate(-cameraX, 0);
+
+            // Draw Platforms
+            platforms.forEach(plat => {
+                if (plat.type === 'ground') {
+                    if (plat.isDeep && deepDirtImg.complete) {
+                        ctx.drawImage(deepDirtImg, 0, 0, deepDirtImg.naturalWidth, deepDirtImg.naturalHeight, plat.x, plat.y, plat.width, plat.height);
+                    } else if (currentTheme.ground && currentTheme.ground.complete) {
+                        ctx.drawImage(currentTheme.ground, 0, 0, currentTheme.ground.naturalWidth, currentTheme.ground.naturalHeight, plat.x, plat.y, plat.width, plat.height);
+                    }
+                }
+                else if (plat.type === 'brick' && currentTheme.brick && currentTheme.brick.complete) {
+                    // Draw seamless brick
+                    ctx.drawImage(currentTheme.brick, 0, 0, currentTheme.brick.naturalWidth, currentTheme.brick.naturalHeight, plat.x, plat.y, plat.width, plat.height);
+                }
+                else if (tileImg.complete) {
+                    const sw = tileImg.naturalWidth / 2;
+                    const sh = tileImg.naturalHeight / 2;
+                    // Ground Left (fallback), Brick Right
+                    const sx = plat.type === 'ground' ? 0 : sw;
+                    const sy = 0;
+                    // Draw clipped
+                    ctx.drawImage(tileImg, sx, sy, sw, sh, plat.x, plat.y, plat.width, plat.height);
+                } else {
+                    ctx.fillStyle = plat.type === 'ground' ? '#654321' : '#d2691e';
+                    ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+                }
+            });
+
+            items.forEach(item => {
+                if (!item.collected) ctx.drawImage(dorayakiImg, item.x, item.y, item.width, item.height);
+            });
+            // Draw Enemies
+            enemies.forEach(enemy => {
+                ctx.save();
+
+                // Calculate animation frame
+                let frameIndex = 0;
+                if (currentTheme.enemyFrames > 1) {
+                    // Use global animTimer for synced animation, or add a timer to enemy based on ID if we tracked it.
+                    // Simple global sync for now.
+                    frameIndex = Math.floor(animTimer / currentTheme.enemyFrameSpeed || 10) % currentTheme.enemyFrames;
+                }
+
+                // Determine if we need to flip based on direction and default sprite facing
+                const isMovingRight = enemy.speed > 0;
+                const spriteFacesLeft = currentTheme.enemyFacingLeft;
+
+                // If moving right and sprite faces left, we must flip.
+                // If moving right and sprite faces right, don't flip.
+                // If moving left and sprite faces left, don't flip.
+                // If moving left and sprite faces right, must flip.
+                const shouldFlip = (isMovingRight && spriteFacesLeft) || (!isMovingRight && !spriteFacesLeft);
+
+                if (shouldFlip) {
+                    ctx.translate(enemy.x + enemy.width, enemy.y);
+                    ctx.scale(-1, 1);
+                    const drawX = 0;
+
+                    if (currentTheme.enemy && currentTheme.enemy.complete) {
+                        const frameWidth = currentTheme.enemy.naturalWidth / currentTheme.enemyFrames;
+                        const frameHeight = currentTheme.enemySpriteHeight || currentTheme.enemy.naturalHeight;
+                        const sy = currentTheme.enemySpriteYOffset || 0;
+
+                        ctx.drawImage(
+                            currentTheme.enemy,
+                            frameIndex * frameWidth, sy, frameWidth, frameHeight,
+                            drawX, 0, enemy.width, enemy.height
+                        );
+                    } else {
+                        ctx.drawImage(mouseImg, drawX, 0, enemy.width, enemy.height);
+                    }
+                } else {
+                    ctx.translate(enemy.x, enemy.y);
+                    const drawX = 0;
+
+                    if (currentTheme.enemy && currentTheme.enemy.complete) {
+                        const frameWidth = currentTheme.enemy.naturalWidth / currentTheme.enemyFrames;
+                        const frameHeight = currentTheme.enemySpriteHeight || currentTheme.enemy.naturalHeight;
+                        const sy = currentTheme.enemySpriteYOffset || 0;
+
+                        ctx.drawImage(
+                            currentTheme.enemy,
+                            frameIndex * frameWidth, sy, frameWidth, frameHeight,
+                            drawX, 0, enemy.width, enemy.height
+                        );
+                    } else {
+                        ctx.drawImage(mouseImg, drawX, 0, enemy.width, enemy.height);
+                    }
+                }
+                ctx.restore();
+            });
+
+            // Draw Exit Door
+            if (exitDoor) {
+                if (currentTheme.door && currentTheme.door.complete) {
+                    ctx.drawImage(currentTheme.door, 0, 0, currentTheme.door.naturalWidth, currentTheme.door.naturalHeight, exitDoor.x, exitDoor.y, exitDoor.width, exitDoor.height);
+                } else {
+                    ctx.drawImage(doorImg, exitDoor.x, exitDoor.y, exitDoor.width, exitDoor.height);
+                }
+            }
+
+            // Global Animation Timer
+            animTimer++;
+
+            // Player Animation Logic
+            // Toggle frame every ANIM_SPEED ticks
+            let playerFrame = Math.floor(animTimer / ANIM_SPEED) % 2;
+
+            let frameIndex = 0;
+            if (!player.grounded) frameIndex = 3;
+            else if (Math.abs(player.dx) > 0.1) frameIndex = 1 + playerFrame;
+
+            ctx.save();
+            // Offset Y by 10 pixels to make player look like they are walking IN the grass
+            const drawY = player.y + 10;
+
+            if (!player.facingRight) {
+                ctx.translate(player.x + player.width, drawY);
+                ctx.scale(-1, 1);
+                // Determine Source Coords from 2x2 grid
+                const col = frameIndex % 2;
+                const row = Math.floor(frameIndex / 2);
+                const sw = heroImg.naturalWidth / 2;
+                const sh = heroImg.naturalHeight / 2;
+
+                ctx.drawImage(heroImg, col * sw, row * sh, sw, sh, 0, 0, player.width, player.height);
+            } else {
+                ctx.translate(player.x, drawY);
+                const col = frameIndex % 2;
+                const row = Math.floor(frameIndex / 2);
+                const sw = heroImg.naturalWidth / 2;
+                const sh = heroImg.naturalHeight / 2;
+
+                ctx.drawImage(heroImg, col * sw, row * sh, sw, sh, 0, 0, player.width, player.height);
+            }
+            ctx.restore();
+
+            ctx.restore();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function checkCollision(rect1, rect2) {
+            return (
+                rect1.x < rect2.x + rect2.width &&
+                rect1.x + rect1.width > rect2.x &&
+                rect1.y < rect2.y + rect2.height &&
+                rect1.y + rect1.height > rect2.y
+            );
+        }
+
+        function triggerGameOver() {
+            if (gameOver || gameWin) return;
+            gameOver = true;
+            modalTitle.innerText = "Game Over!";
+            modalTitle.style.color = "red";
+            modalMsg.innerText = "The mice got you! (or you fell)";
+            modal.style.display = "flex";
+        }
+
+        function triggerWin() {
+            if (gameOver || gameWin) return;
+
+            playSound(sWin);
+
+            // Next Level
+            currentLevelIndex++;
+            if (currentLevelIndex < levels.length) {
+                // Determine Level Name
+                let levelName = "";
+                if (currentLevelIndex === 1) levelName = "Level 2: The Cave";
+                else if (currentLevelIndex === 2) levelName = "Level 3: The Sky";
+                else if (currentLevelIndex === 3) levelName = "Level 4: The Castle";
+
+                // Show temporary message? Or just transition.
+                // Let's reset and init next level.
+                initLevel();
+            } else {
+                gameWin = true;
+                // Redirect to Grand Theft Doraemon
+                window.location.href = "gta.html";
+            }
+        }
+
+        function retryLevel() {
+            modal.style.display = 'none';
+            if (gameWin) {
+                // If they beat the game, restart from beginning
+                currentLevelIndex = 0;
+                score = 0;
+                scoreEl.innerText = score;
+            }
+            // Otherwise keep currentLevelIndex (restart current level)
+            gameOver = false;
+            gameWin = false;
+            initLevel();
+        }
+
+        function playSound(audioEl) {
+            if (audioEl) {
+                audioEl.currentTime = 0;
+                audioEl.play().catch(e => { });
+            }
+        }
+
+        // Initialize when all assets are loaded
+        window.addEventListener('load', () => {
+            console.log("Assets loaded, starting game...");
+
+            // Verify images are valid
+            if (heroImg.naturalWidth === 0 || tileImg.naturalWidth === 0) {
+                console.error("Images failed to load properly");
+                // Fallback or retry?
+            }
+
+            initLevel();
+            gameLoop();
+        });
+
+        // Fallback for timeout?
+        setTimeout(() => {
+            if (platforms.length === 0) {
+                console.log("Forcing init due to timeout");
+                initLevel();
+                gameLoop();
+            }
+        }, 1000);
+    </script>
+</body>
+
+</html>
