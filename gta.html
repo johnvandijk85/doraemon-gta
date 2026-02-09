@@ -110,6 +110,12 @@
             iso_prop_pipes: 'assets/images/iso_prop_pipes.png',
             iso_prop_vending: 'assets/images/iso_prop_vending.png',
             iso_prop_mailbox: 'assets/images/iso_prop_mailbox.png',
+            iso_prop_fence: 'assets/images/iso_prop_fence.png',
+            iso_prop_torii: 'assets/images/iso_prop_torii.png',
+            // New Buildings
+            iso_suneo_house: 'assets/images/iso_suneo_house.png',
+            iso_gian_house: 'assets/images/iso_gian_house.png',
+            iso_shizuka_house: 'assets/images/iso_shizuka_house.png',
             // Doraemon Items
             bamboo_copter: 'assets/images/bamboo_copter.png',
             anywhere_door: 'assets/images/anywhere_door.png',
@@ -2481,13 +2487,16 @@
                         // If we are at a skip position, render nothing.
 
                         if (isAnchor) {
-                            const seed = Math.abs(x * 37 + y * 13) % 8; // Incresed range for more variety
+                            const seed = Math.abs(x * 37 + y * 13) % 11; // Increased range for new assets
                             if (seed === 0) isoImg = assets.iso_commercial;
                             else if (seed === 1) isoImg = assets.iso_nobita_house;
                             else if (seed === 2) isoImg = assets.iso_residential;
                             else if (seed === 3) isoImg = assets.iso_school;
                             else if (seed === 4) isoImg = assets.iso_shop;
                             else if (seed === 5) isoImg = assets.iso_future_house;
+                            else if (seed === 6) isoImg = assets.iso_suneo_house; // Suneo
+                            else if (seed === 7) isoImg = assets.iso_gian_house; // Gian
+                            else if (seed === 8) isoImg = assets.iso_shizuka_house; // Shizuka
                             else isoImg = assets.iso_highrise;
 
                             // Sort Key: Center of 2x2 base
@@ -2505,11 +2514,13 @@
                         } else if (isSkipX || isSkipY) {
                             // Part of 2x2 block - Skip
                         } else {
-                            // Border / Fallback (Shouldn't happen in perfect 7-grid inner 2-5 range, but safe ref)
-                            const seed = Math.abs(x * 37 + y * 13) % 6;
+                            // Border / Fallback
+                            const seed = Math.abs(x * 37 + y * 13) % 8; // Increased range
                             if (seed === 0) isoImg = assets.iso_commercial;
                             else if (seed === 1) isoImg = assets.iso_nobita_house;
                             else if (seed === 2) isoImg = assets.iso_shop;
+                            else if (seed === 3) isoImg = assets.iso_gian_house; // Small variant check?
+                            else if (seed === 4) isoImg = assets.iso_shizuka_house;
                             else isoImg = assets.iso_highrise;
 
                             const cornerIso = toIso(worldX + TILE_SIZE, worldY + TILE_SIZE);
@@ -2540,28 +2551,45 @@
                         // However, we only want ONE set of props per 2x2 area, so only spawn at anchor.
 
                         if (isAnchor) {
+                            const createStreetProp = (wx, wy, img, scale = 1) => {
+                                const iso = toIso(wx, wy);
+                                const cornerIso = toIso(wx + TILE_SIZE, wy + TILE_SIZE);
+                                return {
+                                    sortY: cornerIso.y,
+                                    type: 'street_prop',
+                                    img: img,
+                                    isoX: iso.x,
+                                    isoY: iso.y,
+                                    scale: scale
+                                };
+                            };
+
                             // Multiple Props Logic: Check 4 slots in the 2x2 area
                             for (let py = 0; py < 2; py++) {
                                 for (let px = 0; px < 2; px++) {
                                     // Unique seed for this slot
                                     const slotSeed = Math.abs((x + px) * 45 + (y + py) * 23);
+                                    const chance = slotSeed % 100;
 
-                                    // 50% chance to have a prop in this slot
-                                    if ((slotSeed % 100) < 50) {
+                                    if (chance < 5) {
+                                        // Torii Gate (Rare)
+                                        renderList.push(createStreetProp((x + px) * TILE_SIZE, (y + py) * TILE_SIZE, assets.iso_prop_torii));
+                                    } else if (chance < 15) {
+                                        // Wooden Fence
+                                        renderList.push(createStreetProp((x + px) * TILE_SIZE, (y + py) * TILE_SIZE, assets.iso_prop_fence));
+                                    } else if (chance < 25) {
+                                        // Sakura Tree
+                                        renderList.push(createStreetProp((x + px) * TILE_SIZE, (y + py) * TILE_SIZE, assets.iso_prop_sakura, 1.2));
+                                    } else if (chance < 35) {
+                                        // Concrete Pipes
+                                        renderList.push(createStreetProp((x + px) * TILE_SIZE, (y + py) * TILE_SIZE, assets.iso_prop_pipes));
+                                    } else if (chance < 65) {
+                                        // Standard Park Props (Atlas)
                                         const propType = Math.floor((slotSeed * 10) % 4);
-
-                                        // Calculate World Pos for this slot
-                                        // Anchor is at (x, y). Slot is at (x+px, y+py).
-                                        // Center of that tile.
-                                        const pWorldX = (x + px) * TILE_SIZE; // Tile Left
-                                        const pWorldY = (y + py) * TILE_SIZE; // Tile Top
-
-                                        // Iso for the specific tile
+                                        const pWorldX = (x + px) * TILE_SIZE;
+                                        const pWorldY = (y + py) * TILE_SIZE;
                                         const pIso = toIso(pWorldX, pWorldY);
-
-                                        // SortY: Bottom of this specific tile
                                         const pCornerIso = toIso(pWorldX + TILE_SIZE, pWorldY + TILE_SIZE);
-
                                         renderList.push({
                                             sortY: pCornerIso.y,
                                             type: 'park_prop',
@@ -2888,7 +2916,10 @@
                         // Scale down new assets
                         if (img === assets.iso_nobita_house ||
                             img === assets.iso_shop ||
-                            img === assets.iso_future_house) {
+                            img === assets.iso_future_house ||
+                            img === assets.iso_suneo_house ||
+                            img === assets.iso_gian_house ||
+                            img === assets.iso_shizuka_house) {
                             scale *= 0.6; // Reduce size for housing/shops
                         }
                         if (img === assets.iso_school) {
@@ -2932,7 +2963,10 @@
                         // Scale down new assets
                         if (img === assets.iso_nobita_house ||
                             img === assets.iso_shop ||
-                            img === assets.iso_future_house) {
+                            img === assets.iso_future_house ||
+                            img === assets.iso_suneo_house ||
+                            img === assets.iso_gian_house ||
+                            img === assets.iso_shizuka_house) {
                             scale *= 0.6; // Reduce size
                         }
                         if (img === assets.iso_school) {
