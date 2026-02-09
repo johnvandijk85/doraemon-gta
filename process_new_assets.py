@@ -29,13 +29,19 @@ def main():
     # Source Files (Generated)
     src_sakura = base_artifact_path + "iso_prop_sakura_1770667593259.png"
     src_vending = base_artifact_path + "iso_prop_vending_1770667606545.png"
+    src_mailbox = base_artifact_path + "iso_prop_mailbox_1770667974317.png"
+    src_pipes = base_artifact_path + "iso_prop_pipes_1770667986414.png"
 
     # Destination Files
     dst_sakura = assets_path + "iso_prop_sakura.png"
     dst_vending = assets_path + "iso_prop_vending.png"
+    dst_mailbox = assets_path + "iso_prop_mailbox.png"
+    dst_pipes = assets_path + "iso_prop_pipes.png"
 
     remove_white_bg(src_sakura, dst_sakura)
     remove_white_bg(src_vending, dst_vending)
+    remove_white_bg(src_mailbox, dst_mailbox)
+    remove_white_bg(src_pipes, dst_pipes)
 
 if __name__ == "__main__":
     main()
