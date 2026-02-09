@@ -1458,8 +1458,8 @@
                         }
                     }
 
-                    // 2. Check vs Player (On Foot)
-                    if (!player.inCar) {
+                    // 2. Check vs Player (On Foot and NOT Flying)
+                    if (!player.inCar && !player.isFlying) {
                         const d = Math.hypot(car.x - player.x, car.y - player.y);
                         if (d < 40) {
                             // Hit by car!
@@ -2971,6 +2971,10 @@
 
                 if (item.type === 'street_prop') {
                     const img = item.img;
+                    if (!img) console.log("Street Prop missing img");
+                    else if (!img.complete) console.log("Street Prop img not complete", img.src);
+                    else if (img.naturalWidth === 0) console.log("Street Prop naturalWidth 0", img.src);
+
                     if (img && img.complete && img.naturalWidth > 0) {
                         // Props are small.
                         // Standardize to TILE_SIZE * 0.8 width?
