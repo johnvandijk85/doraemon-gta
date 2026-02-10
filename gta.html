@@ -2465,9 +2465,6 @@
                     let isoImg = null;
                     if (tileType === 3) {
                         // Check for 2x2 Building Blocks in Grid Size 7
-                        // Inner block range: 2,3,4,5
-                        // Possible 2x2 anchors: (2,2), (2,4), (4,2), (4,4)
-
                         const GRID_SIZE = 7;
                         const modX = x % GRID_SIZE;
                         const modY = y % GRID_SIZE;
@@ -2476,52 +2473,78 @@
                         const isAnchor = (modX === 2 || modX === 4) && (modY === 2 || modY === 4);
 
                         // Check if this is a "skip" tile (part of a 2x2 starting elsewhere)
-                        // Valid 2x2s start at 2 and 4.
-                        // Skip if x is 3 (part of 2) or 5 (part of 4)
-                        // Skip if y is 3 (part of 2) or 5 (part of 4)
                         const isSkipX = (modX === 3 || modX === 5);
                         const isSkipY = (modY === 3 || modY === 5);
 
-                        // We are in a building tile (index 2-5).
-                        // If we are at an anchor, render Large.
-                        // If we are at a skip position, render nothing.
+                        // Define what constitutes a "Large" building that needs 2x2 space
+                        // 0=Commercial, 3=School, 6=Suneo, >8=Highrise.
+                        const isLargeSeed = (s) => (s === 0 || s === 3 || s === 6 || s > 8);
+                        const getSeed = (gx, gy) => Math.abs(gx * 37 + gy * 13) % 11;
+
+                        let shouldRenderLargeAtAnchor = false;
+                        let isCoveredByLarge = false;
 
                         if (isAnchor) {
-                            const seed = Math.abs(x * 37 + y * 13) % 11; // Increased range for new assets
+                            const seed = getSeed(x, y);
+                            if (isLargeSeed(seed)) {
+                                shouldRenderLargeAtAnchor = true;
+                            }
+                        }
+
+                        if (isSkipX || isSkipY) {
+                            // Determine the anchor that WOULD cover this tile
+                            let ax = x;
+                            let ay = y;
+                            if (isSkipX) ax = x - 1;
+                            if (isSkipY) ay = y - 1;
+
+                            // Check if that anchor has a large building
+                            const anchorSeed = getSeed(ax, ay);
+                            if (isLargeSeed(anchorSeed)) {
+                                isCoveredByLarge = true;
+                            }
+                        }
+
+                        if (shouldRenderLargeAtAnchor) {
+                            // Render Large Building (2x2)
+                            const seed = getSeed(x, y);
+                            let isoImg;
                             if (seed === 0) isoImg = assets.iso_commercial;
-                            else if (seed === 1) isoImg = assets.iso_nobita_house;
-                            else if (seed === 2) isoImg = assets.iso_residential;
                             else if (seed === 3) isoImg = assets.iso_school;
-                            else if (seed === 4) isoImg = assets.iso_shop;
-                            else if (seed === 5) isoImg = assets.iso_future_house;
-                            else if (seed === 6) isoImg = assets.iso_suneo_house; // Suneo
-                            else if (seed === 7) isoImg = assets.iso_gian_house; // Gian
-                            else if (seed === 8) isoImg = assets.iso_shizuka_house; // Shizuka
+                            else if (seed === 6) isoImg = assets.iso_suneo_house;
                             else isoImg = assets.iso_highrise;
 
-                            // Sort Key: Center of 2x2 base
                             const cornerIso = toIso(worldX + TILE_SIZE * 2, worldY + TILE_SIZE * 2);
-
                             renderList.push({
                                 sortY: cornerIso.y,
-                                type: 'building_large',
+                                type: 'building_large', // Uses special scaling logic
                                 img: isoImg,
                                 isoX: iso.x,
                                 isoY: iso.y,
                                 worldX: worldX,
                                 worldY: worldY
                             });
-                        } else if (isSkipX || isSkipY) {
-                            // Part of 2x2 block - Skip
-                        } else {
-                            // Border / Fallback
-                            const seed = Math.abs(x * 37 + y * 13) % 8; // Increased range
-                            if (seed === 0) isoImg = assets.iso_commercial;
+                        } else if (!isCoveredByLarge) {
+                            // Render Small Building (1x1)
+                            // This runs if:
+                            // 1. We are an Anchor but the seed is Small (so we use 1x1)
+                            // 2. We are a Skip tile but the Anchor is Small (so we are free to use 1x1)
+                            // 3. We are a normal tile (not Anchor, not Skip)
+
+                            const seed = getSeed(x, y);
+                            let isoImg;
+
+                            // Map seeds to Small assets
+                            if (seed === 0) isoImg = assets.iso_commercial; // Can be small too?
                             else if (seed === 1) isoImg = assets.iso_nobita_house;
-                            else if (seed === 2) isoImg = assets.iso_shop;
-                            else if (seed === 3) isoImg = assets.iso_gian_house; // Small variant check?
-                            else if (seed === 4) isoImg = assets.iso_shizuka_house;
-                            else isoImg = assets.iso_highrise;
+                            else if (seed === 2) isoImg = assets.iso_residential;
+                            else if (seed === 3) isoImg = assets.iso_school; // Should be caught by Large check, but fallback
+                            else if (seed === 4) isoImg = assets.iso_shop;
+                            else if (seed === 5) isoImg = assets.iso_future_house;
+                            else if (seed === 6) isoImg = assets.iso_suneo_house; // Should be large
+                            else if (seed === 7) isoImg = assets.iso_gian_house;
+                            else if (seed === 8) isoImg = assets.iso_shizuka_house;
+                            else isoImg = assets.iso_residential; // Fallback small
 
                             const cornerIso = toIso(worldX + TILE_SIZE, worldY + TILE_SIZE);
                             renderList.push({
