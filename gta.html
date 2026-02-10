@@ -2947,10 +2947,10 @@
                             img === assets.iso_suneo_house ||
                             img === assets.iso_gian_house ||
                             img === assets.iso_shizuka_house) {
-                            scale *= 0.6; // Reduce size for housing/shops
+                            scale *= 0.85; // Increased from 0.6 to 0.85
                         }
                         if (img === assets.iso_school) {
-                            scale *= 0.9; // Slight reduction for school
+                            scale *= 1.0; // Restored to full size (was 0.9)
                         }
 
                         const drawW = Math.floor(img.naturalWidth * scale);
