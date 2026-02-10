@@ -101,7 +101,6 @@
             iso_future_house: 'assets/images/iso_future_house.png',
             iso_nobita_house: 'assets/images/iso_nobita_house.png',
             iso_school: 'assets/images/iso_school.png',
-            // New Ground Assets
             iso_ground_japan_street: 'assets/images/iso_ground_japan_street.png',
             iso_ground_garden: 'assets/images/iso_ground_garden.png',
             iso_ground_school: 'assets/images/iso_ground_school.png',
@@ -2462,6 +2461,7 @@
                     if (iso.x < pIso.x - (width / CAM_ZOOM) - 600 || iso.x > pIso.x + (width / CAM_ZOOM) + 600 ||
                         iso.y < pIso.y - (height / CAM_ZOOM) - 600 || iso.y > pIso.y + (height / CAM_ZOOM) + 600) continue;
 
+
                     let isoImg = null;
                     if (tileType === 3) {
                         // Check for 2x2 Building Blocks in Grid Size 7
@@ -2484,10 +2484,29 @@
                         let shouldRenderLargeAtAnchor = false;
                         let isCoveredByLarge = false;
 
+
                         if (isAnchor) {
                             const seed = getSeed(x, y);
                             if (isLargeSeed(seed)) {
                                 shouldRenderLargeAtAnchor = true;
+                            } else {
+                                // Small Building (1x1) - Draw normally
+                                // ... existing logic ...
+                                if (seed === 0) isoImg = assets.iso_shop;
+                                else if (seed === 1) isoImg = assets.iso_shop;
+                                else if (seed === 2) isoImg = assets.iso_residential;
+                                else if (seed === 4) isoImg = assets.iso_residential;
+                                else if (seed === 5) isoImg = assets.iso_gian_house;
+                                else if (seed === 7) isoImg = assets.iso_nobita_house;
+                                else if (seed === 8) isoImg = assets.iso_shizuka_house;
+                                // Commercial (seed 10 in small slot?) -> iso_commercial (Small)
+                                // Actually Logic: 0=Comm, 3=School, 6=Suneo, >8=Highrise are LARGE seeds.
+                                // If we are here, isLargeSeed(seed) is FALSE.
+                                // So we only handle non-large seeds.
+
+                                // Wait, the previous logic was:
+                                // if (isLargeSeed(seed)) -> shouldRenderLargeAtAnchor = true
+                                // else -> draw small building immediately.
                             }
                         }
 
@@ -3168,9 +3187,10 @@
 
 
                     if (item.type === 'car' || item.type === 'car1' || item.type === 'car2' || item.type === 'police_car' || item.type === 'car_blue' || item.type === 'car_green' || item.type === 'car_yellow' || (item.type === 'player' && obj.inCar)) {
-                        // Car Asset is huge (1024). Target length ~ 75px (Bigger but passable)
-                        let targetSize = 75;
-                        if (item.type === 'car2' || item.type === 'car_blue' || item.type === 'car_green' || item.type === 'car_yellow') targetSize = 90; // Boosting Mini/New Dora visibility
+                        // Car Asset is huge (1024). Target length to fit 64px tile lanes.
+                        // Lane width is ~32px. Car should be slightly larger for visibility but not > tile.
+                        let targetSize = 45; // Was 75
+                        if (item.type === 'car2' || item.type === 'car_blue' || item.type === 'car_green' || item.type === 'car_yellow') targetSize = 55; // Was 90
 
                         scale = targetSize / img.naturalWidth;
                         ctx.scale(scale, scale);
