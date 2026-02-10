@@ -5,25 +5,48 @@
     <style>
         body {
             background-color: purple;
+            /* High contrast for white transparency */
+            color: white;
+            font-family: sans-serif;
         }
 
-        /* Distinct background to see transparency */
+        .asset-container {
+            display: inline-block;
+            margin: 20px;
+            text-align: center;
+        }
+
         img {
             border: 2px solid red;
-            margin: 20px;
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            /* Checkerboard behind the image itself */
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
     </style>
 </head>
 
 <body>
-    <h1>Asset Debug</h1>
-    <p>Background is purple. If you see black or checkerboard inside the red boxes, the image is NOT transparent.</p>
+    <h1>Asset Transparency Debug</h1>
+    <p>Purple page background. Checkerboard image background. Look for "holes" in the white walls.</p>
 
-    <h2>Crater V2</h2>
-    <img src="assets/images/crater_v2.png">
+    <div class="asset-container">
+        <h2>Suneo's House</h2>
+        <img src="assets/images/iso_suneo_house.png">
+    </div>
 
-    <h2>Explosion V2</h2>
-    <img src="assets/images/explosion_v2.png">
+    <div class="asset-container">
+        <h2>Gian's House</h2>
+        <img src="assets/images/iso_gian_house.png">
+    </div>
+
+    <div class="asset-container">
+        <h2>Shizuka's House</h2>
+        <img src="assets/images/iso_shizuka_house.png">
+    </div>
 </body>
 
 </html>
