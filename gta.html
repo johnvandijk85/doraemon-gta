@@ -2477,8 +2477,8 @@
                         const isSkipY = (modY === 3 || modY === 5);
 
                         // Define what constitutes a "Large" building that needs 2x2 space
-                        // 0=Commercial, 3=School, 6=Suneo, >8=Highrise.
-                        const isLargeSeed = (s) => (s === 0 || s === 3 || s === 6 || s > 8);
+                        // 0=Commercial (Small), 3=School, 6=Suneo, >8=Highrise (Large).
+                        const isLargeSeed = (s) => (s === 3 || s === 6 || s > 8);
                         const getSeed = (gx, gy) => Math.abs(gx * 37 + gy * 13) % 11;
 
                         let shouldRenderLargeAtAnchor = false;
