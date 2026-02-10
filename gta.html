@@ -2634,16 +2634,20 @@
                         else if ((modX === 3 || modX === 5) && (modY === 3 || modY === 5)) { anchorX = x - 1; anchorY = y - 1; } // Diag of Anchor
 
                         if (anchorX !== -1) {
-                            const seed = Math.abs(anchorX * 37 + anchorY * 13) % 8;
+                            const seed = Math.abs(anchorX * 37 + anchorY * 13) % 11; // Updated to match building seed range
                             if (seed === 1) img = assets.iso_ground_japan_street; // Nobita House
                             else if (seed === 3) img = assets.iso_ground_school; // School
                             else if (seed === 4) img = assets.iso_ground_japan_street; // Shop
                             else if (seed === 5) img = assets.iso_ground_garden; // Future House
+                            else if (seed === 6) img = assets.iso_ground_garden; // Suneo House
+                            else if (seed === 7) img = assets.iso_ground_japan_street; // Gian's Store
+                            else if (seed === 8) img = assets.iso_ground_garden; // Shizuka House
                         } else {
                             // Single tile filler
-                            const seed = Math.abs(x * 37 + y * 13) % 6;
+                            const seed = Math.abs(x * 37 + y * 13) % 8; // Updated range
                             if (seed === 1) img = assets.iso_ground_japan_street; // Nobita House
                             else if (seed === 2) img = assets.iso_ground_japan_street; // Shop
+                            else if (seed === 4) img = assets.iso_ground_japan_street; // Shop variant
                         }
                     }
 
