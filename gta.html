@@ -152,6 +152,15 @@
         let gameTime = 1200; // 0000 - 2400
         let timeScale = 0.5; // Minutes per frame
 
+        // Weather System
+        const weather = {
+            type: 'clear', // 'clear', 'rain', 'sakura'
+            timer: 0,
+            duration: 1000 // Frames until next change
+        };
+        const rainParticles = [];
+        const sakuraParticles = [];
+
         // Missions
         let mission = {
             active: false,
@@ -3651,9 +3660,105 @@
 
         function loop() {
             update();
+            updateWeather(); // New Weather Update
             draw();
             drawDayNightOverlay();
+            drawWeather(); // New Weather Draw
             requestAnimationFrame(loop);
+        }
+
+        // Weather Logic
+        function updateWeather() {
+            weather.timer++;
+            if (weather.timer > weather.duration) {
+                weather.timer = 0;
+                // Switch Weather randomly
+                const rand = Math.random();
+                if (rand < 0.6) weather.type = 'clear';
+                else if (rand < 0.8) weather.type = 'rain';
+                else weather.type = 'sakura';
+
+                // Randomize duration (10s to 30s at 60fps)
+                weather.duration = 600 + Math.random() * 1200;
+                console.log("Weather changed to: " + weather.type);
+            }
+
+            // Update Particles
+            if (weather.type === 'rain') {
+                // Spawn Rain
+                for (let i = 0; i < 5; i++) {
+                    rainParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: -20,
+                        speed: 15 + Math.random() * 10,
+                        length: 20 + Math.random() * 10
+                    });
+                }
+            } else if (weather.type === 'sakura') {
+                // Spawn Sakura
+                if (Math.random() < 0.3) {
+                    sakuraParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: -10,
+                        vx: -1 + Math.random() * 2,
+                        vy: 1 + Math.random() * 1,
+                        size: 3 + Math.random() * 3,
+                        rotation: Math.random() * Math.PI,
+                        rotSpeed: -0.05 + Math.random() * 0.1
+                    });
+                }
+            }
+
+            // Move Rain
+            for (let i = rainParticles.length - 1; i >= 0; i--) {
+                const p = rainParticles[i];
+                p.y += p.speed;
+                p.x -= 2; // Wind
+                if (p.y > canvas.height) rainParticles.splice(i, 1);
+            }
+
+            // Move Sakura
+            for (let i = sakuraParticles.length - 1; i >= 0; i--) {
+                const p = sakuraParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rotation += p.rotSpeed;
+                if (p.y > canvas.height) sakuraParticles.splice(i, 1);
+            }
+
+            // Clear particles if irrelevant (optional, or let them fall off)
+            if (weather.type !== 'rain' && rainParticles.length > 0) {
+                // Let them fall
+            }
+        }
+
+        function drawWeather() {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Screen Space
+
+            if (rainParticles.length > 0) {
+                ctx.strokeStyle = 'rgba(150, 150, 255, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                rainParticles.forEach(p => {
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p.x - 5, p.y + p.length);
+                });
+                ctx.stroke();
+            }
+
+            if (sakuraParticles.length > 0) {
+                ctx.fillStyle = 'rgba(255, 180, 200, 0.8)';
+                sakuraParticles.forEach(p => {
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation);
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    ctx.restore();
+                });
+            }
+
+            ctx.restore();
         }
 
         function drawDayNightOverlay() {
@@ -3670,31 +3775,24 @@
                 color = 'rgba(60, 80, 150, 0.3)';
             }
 
+            // Draw Day/Night Tint
             if (color) {
                 ctx.save();
                 ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform to screen space
-
-                // Draw over everything rendered so far (World)
-                // But we want UI to be on top.
-                // Since this function is called after draw(), if draw() draws UI, this covers UI.
-                // We should modify draw() to NOT draw UI, and call drawUI() here?
-                // Or just accepting that UI might be slightly tinted? 
-                // The user asked for "Visual overlays".
-                // Let's try to be smart. 
-                // gameCanvas is the only canvas.
-
                 ctx.fillStyle = color;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
 
-                // Debug Time
-                // ctx.fillStyle = "white";
-                // ctx.font = "16px monospace";
-                // ctx.fillText("Time: " + Math.floor(gameTime), 10, 100);
-
+            // Draw Rain Tint (Darker)
+            if (weather.type === 'rain') {
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.fillStyle = 'rgba(0, 0, 20, 0.3)'; // Stormy darkening
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.restore();
             }
         }
-
 
         // Sounds (Using HTML5 Audio for local file compatibility)
 
