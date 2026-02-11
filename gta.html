@@ -111,6 +111,8 @@
             iso_prop_mailbox: 'assets/images/iso_prop_mailbox.png',
             iso_prop_fence: 'assets/images/iso_prop_fence.png',
             iso_prop_torii: 'assets/images/iso_prop_torii.png',
+            // New Ground Tile
+            iso_ground_modern: 'assets/images/iso_ground_modern.png',
             // New Buildings
             iso_suneo_house: 'assets/images/iso_suneo_house.png',
             iso_gian_house: 'assets/images/iso_gian_house.png',
@@ -2684,6 +2686,7 @@
                             else if (seed === 6) img = assets.iso_ground_garden; // Suneo House
                             else if (seed === 7) img = assets.iso_ground_japan_street; // Gian's Store
                             else if (seed === 8) img = assets.iso_ground_garden; // Shizuka House
+                            else if (seed > 8) img = assets.iso_ground_modern; // Highrise -> Modern Ground
                         } else {
                             // Single tile filler
                             const seed = Math.abs(x * 37 + y * 13) % 8; // Updated range
