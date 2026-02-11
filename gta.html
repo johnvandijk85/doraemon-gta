@@ -538,6 +538,18 @@
                             const dirs = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
                             npc.angle = dirs[Math.floor(Math.random() * dirs.length)];
                             npc.speed = 1 + Math.random() * 0.5;
+
+                            // Chance to Bow or Check Phone
+                            const r = Math.random();
+                            if (r < 0.3) { // Increased from 0.1
+                                npc.state = 'phone';
+                                npc.stateTimer = 120 + Math.random() * 180;
+                                npc.speed = 0.3; // Zombie walk
+                            } else if (r < 0.5) { // Increased from 0.15 (so 0.3 to 0.5 is 20%)
+                                npc.state = 'bow';
+                                npc.stateTimer = 60 + Math.random() * 40;
+                                npc.speed = 0;
+                            }
                         }
                     } else if (npc.state === 'walk') {
                         if (npc.stateTimer <= 0) {
@@ -548,6 +560,7 @@
                             // Move
                             const nextX = npc.x + Math.cos(npc.angle) * npc.speed;
                             const nextY = npc.y + Math.sin(npc.angle) * npc.speed;
+
 
                             // Check Collision ahead
                             // We want to detect if we are about to hit a NON-Sidewalk tile
@@ -597,6 +610,23 @@
                                 npc.x = nextX;
                                 npc.y = nextY;
                             }
+                        }
+                    } else if (npc.state === 'phone') {
+                        npc.stateTimer--;
+                        if (npc.stateTimer <= 0) {
+                            npc.state = 'idle';
+                            npc.stateTimer = 60;
+                            npc.speed = 0;
+                        } else {
+                            // Slow move
+                            npc.x += Math.cos(npc.angle) * npc.speed;
+                            npc.y += Math.sin(npc.angle) * npc.speed;
+                        }
+                    } else if (npc.state === 'bow') {
+                        npc.stateTimer--;
+                        if (npc.stateTimer <= 0) {
+                            npc.state = 'idle';
+                            npc.stateTimer = 60;
                         }
                     } else if (npc.state === 'wait_to_cross') {
                         if (npc.stateTimer <= 0) {
@@ -3336,6 +3366,14 @@
                             ctx.rotate(isoAngle + Math.PI / 2);
                         } else {
                             ctx.rotate(isoAngle + Math.PI / 2);
+
+                            // Bow Animation
+                            if (obj.state === 'bow') {
+                                // Bobbing Bow
+                                const bob = Math.sin(Date.now() / 150) * 0.15;
+                                ctx.scale(1, 0.7 + bob); // Squash and stretch
+                                ctx.translate(0, 15); // Anchor feet
+                            }
                         }
                     }
 
@@ -3344,6 +3382,15 @@
                     const drawW = img.naturalWidth;
                     const drawH = img.naturalHeight;
                     ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+
+                    // Phone Light
+                    if (item.type === 'npc' && obj.state === 'phone') {
+                        ctx.fillStyle = (Math.random() > 0.8) ? '#aaddff' : '#ffffff'; // Flicker
+                        ctx.shadowColor = '#0088ff';
+                        ctx.shadowBlur = 15;
+                        ctx.fillRect(-8, -22, 16, 10); // Larger Screen
+                        ctx.shadowBlur = 0;
+                    }
 
                     ctx.restore(); // Restore to un-rotated/scaled state (but still translated)
 
