@@ -147,7 +147,10 @@
         let width, height;
         const CAM_ZOOM = 2.5;
         let wantedLevel = 0;
+
         let policeSpawnTimer = 0;
+        let gameTime = 1200; // 0000 - 2400
+        let timeScale = 0.5; // Minutes per frame
 
         // Missions
         let mission = {
@@ -2222,6 +2225,10 @@
             } else {
                 policeSpawnTimer = 0;
             }
+
+            // Update Day/Night Cycle
+            gameTime += timeScale;
+            if (gameTime >= 2400) gameTime -= 2400;
         }
 
         function drawBullets() {
@@ -2436,6 +2443,14 @@
 
             // Camera follow
             // Camera follow
+
+            // Draw Day/Night Overlay (Background/Sky color)
+            // Actually, we should draw this AFTER the map if it's an overlay, 
+            // or BEFORE if it's just background color. 
+            // But we want to tint the whole world blue at night.
+            // So we'll draw a semi-transparent rect over the entire screen after drawing the world, 
+            // but BEFORE drawing the UI.
+
             // Isometric Projection Helper: now global
 
             // Calculate Player Iso Pos for Camera (Center on Player)
@@ -2985,6 +3000,35 @@
                         const destY = centerY - drawH + (TILE_SIZE / 4); // Adjustment to fit perspective
 
                         ctx.drawImage(img, destX, destY, drawW, drawH);
+
+                        // Lit Windows Logic (Night Only)
+                        if (gameTime >= 2000 || gameTime < 500) {
+                            // Only for Highrises and Commercial buildings
+                            if (img === assets.iso_highrise || img === assets.iso_commercial || img === assets.iso_school) {
+                                // Deterministic Random for windows based on position
+                                const winSeed = (item.worldX * 13 + item.worldY * 37);
+                                const numWindows = (img === assets.iso_highrise) ? 10 : 3;
+
+                                ctx.fillStyle = "rgba(255, 255, 200, 0.7)"; // Warm light
+
+                                for (let w = 0; w < numWindows; w++) {
+                                    // Random positions on the building face
+                                    // Use simple hashing
+                                    const h = (winSeed + w * 127) % 100;
+                                    if (h > 60) { // 40% chance per slot
+                                        // Map 0-100 to x/y on the sprite
+                                        // This is a rough approximation since sprites are irregular isometric shapes
+                                        // We'll confine to a central box
+                                        const wx = destX + 10 + ((h * 7) % (drawW - 20)); // X pos
+                                        const wy = destY + 20 + ((h * 3) % (drawH - 40)); // Y pos
+
+                                        // Draw window rect
+                                        ctx.fillRect(wx, wy, 4, 6);
+                                    }
+                                }
+                            }
+                        }
+
                     }
                     return;
                 }
@@ -2992,7 +3036,7 @@
                 if (item.type === 'building_large') {
                     const img = item.img;
                     if (img && img.complete) {
-                        // Scale for 2x2 tiles. 
+                        // Scale for 2x2 tiles.  
                         // 1 tile width = 1.5 scale? 
                         // 2 tile width should be approx 3.0 scale.
                         // Actually, diagonal width of 2 tiles is TILE_SIZE * 2 * 2 (Iso geometry is tricky)
@@ -3233,6 +3277,39 @@
                         }
 
                         ctx.rotate(finalAngle);
+
+                        // Headlights (Night Only)
+                        if (gameTime >= 1900 || gameTime < 600) {
+                            if (item.type === 'police_car' || item.type === 'car_blue' || item.type === 'car_green' || item.type === 'car_yellow' || item.type === 'car2' || item.type === 'car' || item.type === 'car1') {
+                                ctx.save();
+                                // Headlight Rotation Correction
+                                // Default draws "UP" (-Y).
+                                // car1 (Time Machine) sprite faces RIGHT. To make UP look Right, rotate +90.
+                                // car_blue/green/yellow sprite faces LEFT. To make UP look Left, rotate -90.
+
+                                if (currentCarType === 'car1') {
+                                    ctx.rotate(Math.PI / 2);
+                                } else if (needsPlus90.includes(currentCarType)) {
+                                    ctx.rotate(-Math.PI / 2);
+                                }
+
+                                ctx.globalCompositeOperation = "screen";
+                                ctx.fillStyle = "rgba(255, 255, 200, 0.4)";
+                                // ... drawing commands ...
+                                ctx.beginPath();
+                                ctx.moveTo(-150, -480); // Left headlight start
+                                ctx.lineTo(-400, -2200); // Beam end left
+                                ctx.lineTo(-20, -2200);  // Beam end center-left
+                                ctx.fill();
+
+                                ctx.beginPath();
+                                ctx.moveTo(150, -480); // Right headlight start
+                                ctx.lineTo(20, -2200); // Beam end center-right
+                                ctx.lineTo(400, -2200); // Beam end right
+                                ctx.fill();
+                                ctx.restore();
+                            }
+                        }
 
                     } else if (item.type === 'player' || item.type === 'npc') {
                         // Player/NPC Assets (1024). Target width ~ 30px
@@ -3575,8 +3652,49 @@
         function loop() {
             update();
             draw();
+            drawDayNightOverlay();
             requestAnimationFrame(loop);
         }
+
+        function drawDayNightOverlay() {
+            let color = null; // Default Day
+
+            if (gameTime >= 1800 && gameTime < 2000) {
+                // Sunset (Blue/Purple transition)
+                color = 'rgba(50, 20, 100, 0.3)';
+            } else if (gameTime >= 2000 || gameTime < 500) {
+                // Night (Deep Blue)
+                color = 'rgba(0, 0, 60, 0.5)';
+            } else if (gameTime >= 500 && gameTime < 600) {
+                // Sunrise (Lighter Blue)
+                color = 'rgba(60, 80, 150, 0.3)';
+            }
+
+            if (color) {
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform to screen space
+
+                // Draw over everything rendered so far (World)
+                // But we want UI to be on top.
+                // Since this function is called after draw(), if draw() draws UI, this covers UI.
+                // We should modify draw() to NOT draw UI, and call drawUI() here?
+                // Or just accepting that UI might be slightly tinted? 
+                // The user asked for "Visual overlays".
+                // Let's try to be smart. 
+                // gameCanvas is the only canvas.
+
+                ctx.fillStyle = color;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Debug Time
+                // ctx.fillStyle = "white";
+                // ctx.font = "16px monospace";
+                // ctx.fillText("Time: " + Math.floor(gameTime), 10, 100);
+
+                ctx.restore();
+            }
+        }
+
 
         // Sounds (Using HTML5 Audio for local file compatibility)
 
