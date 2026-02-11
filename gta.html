@@ -3730,6 +3730,28 @@
             if (weather.type !== 'rain' && rainParticles.length > 0) {
                 // Let them fall
             }
+
+            // Weather Sounds Logic
+            if (weather.type === 'rain') {
+                // Play Rain Loop if not already playing
+                if (!sounds['rain'].looping) {
+                    playSound('rain', null, true, 0.5); // Loop at 50% volume
+                    sounds['rain'].looping = true;
+                }
+
+                // Random Thunder
+                if (Math.random() < 0.005) { // 0.5% chance per frame (~once every 3-4 seconds)
+                    // Thunder volume based on nothing, just loud
+                    playSound('thunder', null, false, 0.8);
+                }
+            } else {
+                // Stop Rain Loop if playing
+                if (sounds['rain'] && sounds['rain'].looping) {
+                    sounds['rain'].pause();
+                    sounds['rain'].currentTime = 0;
+                    sounds['rain'].looping = false;
+                }
+            }
         }
 
         function drawWeather() {
@@ -3810,7 +3832,9 @@
             mission_steal: 'assets/sounds/mission_steal.wav',
             accomplished: 'assets/sounds/accomplished.mp3',
             failed: 'assets/sounds/failed.mp3',
-            siren: 'assets/sounds/police-siren.mp3'
+            siren: 'assets/sounds/police-siren.mp3',
+            rain: 'assets/sounds/rain.wav',
+            thunder: 'assets/sounds/thunder.wav'
         };
 
         // Unified Audio System (HTML5 Audio Backed)
@@ -3853,7 +3877,7 @@
 
             // Clone for overlapping SFX
             let audio;
-            if (key === 'theme' || key === 'accomplished') {
+            if (key === 'theme' || key === 'accomplished' || key === 'rain') {
                 audio = sounds[key];
             } else {
                 audio = sounds[key].cloneNode();
