@@ -118,7 +118,7 @@
             iso_gian_house: 'assets/images/iso_gian_house.png',
             iso_gian_house: 'assets/images/iso_gian_house.png',
             iso_shizuka_house: 'assets/images/iso_shizuka_house.png',
-            iso_scooter: 'assets/images/iso_scooter.png?v=' + Date.now() + '_fix',
+            iso_scooter: 'assets/images/iso_scooter.png?v=' + Date.now() + '_final',
             // Doraemon Items
             bamboo_copter: 'assets/images/bamboo_copter.png',
             anywhere_door: 'assets/images/anywhere_door.png',
@@ -3342,8 +3342,9 @@
                             finalAngle -= Math.PI / 2;
                         }
 
-                        // New Cars (Blue, Green, Yellow) face LEFT in sprite -> needs +90 deg (Total 180 from -90 fix)
-                        const needsPlus90 = ['car_blue', 'car_green', 'car_yellow'];
+                        // New Cars (Blue, Green, Yellow) face LEFT in sprite -> needs +90 deg
+                        // Scooter being added here per user request to flip 90 degrees
+                        const needsPlus90 = ['car_blue', 'car_green', 'car_yellow', 'scooter'];
                         if (needsPlus90.includes(currentCarType)) {
                             finalAngle += Math.PI / 2;
                         }
