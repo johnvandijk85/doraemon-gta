@@ -327,6 +327,7 @@
         const mapWidth = 200;
         const mapHeight = 200;
         const map = [];
+        let staticProps = []; // Persistent props for interaction
 
         // Generate a grid
         // Block Size 7 (1 Road + 6 Inner)
@@ -376,6 +377,8 @@
             map.push(row);
         }
 
+        initStaticProps();
+
         // Input
         const keys = {};
 
@@ -385,6 +388,61 @@
                 x: (x - y),
                 y: (x + y) / 2
             };
+        }
+
+        // Initialize Static Props
+        function initStaticProps() {
+            staticProps = [];
+            for (let x = 0; x < mapWidth; x++) {
+                for (let y = 0; y < mapHeight; y++) {
+                    const tileType = map[y][x];
+                    const propSeed = (x * 73 + y * 19) % 100;
+
+                    // On Sidewalks: Vending Machines, Mailboxes
+                    if (tileType === 1 || tileType === 6) {
+                        if (tileType === 1) {
+                            if (propSeed === 5) { // Vending Machine
+                                staticProps.push({
+                                    gridX: x, gridY: y,
+                                    type: 'vending_machine',
+                                    assetKey: 'iso_prop_vending'
+                                });
+                            } else if (propSeed === 15) { // Mailbox
+                                staticProps.push({
+                                    gridX: x, gridY: y,
+                                    type: 'mailbox',
+                                    assetKey: 'iso_prop_mailbox'
+                                });
+                            } else if (propSeed === 25) { // Sakura
+                                staticProps.push({
+                                    gridX: x, gridY: y,
+                                    type: 'sakura',
+                                    assetKey: 'iso_prop_sakura',
+                                    scale: 1.2
+                                });
+                            }
+                        }
+                    }
+                    // On Grass
+                    if (tileType === 2) {
+                        if (propSeed === 35) { // Sakura
+                            staticProps.push({
+                                gridX: x, gridY: y,
+                                type: 'sakura',
+                                assetKey: 'iso_prop_sakura',
+                                scale: 1.2
+                            });
+                        } else if (propSeed === 45) { // Pipes
+                            staticProps.push({
+                                gridX: x, gridY: y,
+                                type: 'pipes',
+                                assetKey: 'iso_prop_pipes'
+                            });
+                        }
+                    }
+                }
+            }
+            console.log("Initialized " + staticProps.length + " static props.");
         }
 
         function resize() {
@@ -397,6 +455,84 @@
         window.addEventListener('keydown', e => {
             keys[e.code] = true;
             if (e.code === 'KeyF') player.tryEnterCar = true;
+            if (e.code === 'KeyV') {
+                // Interaction
+                // Check for Vending Machines
+                // Player Pos
+                const px = player.x;
+                const py = player.y;
+
+                let nearestProp = null;
+                let minDist = 9999;
+
+                console.log(`[DEBUG] V Pressed. Player: (${Math.floor(px)},${Math.floor(py)})`);
+
+                let foundAny = false;
+
+                staticProps.forEach(prop => {
+                    if (prop.type === 'vending_machine') {
+                        // Prop Pos (World Space)
+                        const propX = prop.gridX * TILE_SIZE + TILE_SIZE / 2;
+                        const propY = prop.gridY * TILE_SIZE + TILE_SIZE / 2;
+
+                        const dist = Math.hypot(px - propX, py - propY);
+
+                        if (dist < minDist) {
+                            minDist = dist;
+                            nearestProp = { ...prop, x: propX, y: propY };
+                            foundAny = true;
+                        }
+                    }
+                });
+
+                if (nearestProp && minDist < 120) { // Interaction Range
+                    // Buy Drink
+                    const price = 150;
+                    if (player.score >= price) {
+                        if (player.health < 100) {
+                            player.score -= price;
+                            player.health = Math.min(100, player.health + 25);
+                            updateUI(); // Immediate UI Refresh
+                            playSound('pickup', { x: px, y: py }, false, 1.0);
+
+                            floatingTexts.push({
+                                x: nearestProp.x,
+                                y: nearestProp.y - 40,
+                                text: "+25 HP",
+                                life: 60,
+                                color: '#0f0'
+                            });
+                            floatingTexts.push({
+                                x: nearestProp.x,
+                                y: nearestProp.y - 60,
+                                text: "-" + price + " Yen",
+                                life: 60,
+                                color: '#ff0'
+                            });
+                        } else {
+                            floatingTexts.push({
+                                x: nearestProp.x,
+                                y: nearestProp.y - 50,
+                                text: "Full Health!",
+                                life: 60,
+                                color: 'white'
+                            });
+                        }
+                    } else {
+                        floatingTexts.push({
+                            x: nearestProp.x,
+                            y: nearestProp.y - 50,
+                            text: "Need " + price + " Yen",
+                            life: 60,
+                            color: 'red'
+                        });
+                    }
+                } else {
+                    if (foundAny) {
+                        spawnFloatingText(player.x, player.y - 50, "Too Far!", "gray");
+                    }
+                }
+            }
             if (e.code === 'KeyC') {
                 if (!player.inCar) { // Can't fly in car (yet)
                     player.isFlying = !player.isFlying;
@@ -1046,11 +1182,8 @@
                     car.speed = -2.0; // Force reverse
 
                     // Simple steering adjustment while reversing to unstick
-                    // Randomly turn slightly to break symmetry
-                    if (car.reversingTimer % 20 === 0) {
-                        const turn = (Math.random() - 0.5) * 0.5;
-                        car.angle += turn;
-                    }
+                    // Make them turn drastically to clear the obstacle
+                    car.angle += 0.05;
 
                     // Move backward
                     car.x += Math.cos(car.angle) * car.speed;
@@ -1058,6 +1191,12 @@
 
                     // Update Audio Volume (keep engine running)
                     // (Already handled above)
+
+                    // Increment stuckTimer even while reversing, so it can eventually despawn if trapped
+                    car.stuckTimer++;
+                    if (car.stuckTimer > 300) {
+                        car.health = 0; // Despawn
+                    }
 
                     // Skip normal AI logic
                     return;
@@ -1164,30 +1303,47 @@
 
                 if (car.driver !== 'npc' && car.driver !== 'police') return;
 
-                // Stuck Detection
-                if (Math.abs(car.speed) < 0.5) {
-                    car.stuckTimer++;
-                    if (car.stuckTimer > 180) { // 3 seconds at 60fps
-                        // Turn Around
-                        car.angle += Math.PI;
-                        car.speed = 2; // Jumpstart
-                        car.stuckTimer = 0;
+                // Stuck Detection (Distance Based)
+                if (car.stuckCheckTimer === undefined) {
+                    car.stuckCheckTimer = 0;
+                    car.lastStuckX = car.x;
+                    car.lastStuckY = car.y;
+                }
 
-                        // Switch Lane
-                        const laneOffset = 16;
-                        const currentTx = Math.floor(car.x / TILE_SIZE);
-                        const currentTy = Math.floor(car.y / TILE_SIZE);
-                        const cx = currentTx * TILE_SIZE + TILE_SIZE / 2;
-                        const cy = currentTy * TILE_SIZE + TILE_SIZE / 2;
-
-                        const offX = Math.cos(car.angle + Math.PI / 2) * laneOffset;
-                        const offY = Math.sin(car.angle + Math.PI / 2) * laneOffset;
-
-                        car.x = cx + offX;
-                        car.y = cy + offY;
+                car.stuckCheckTimer++;
+                if (car.stuckCheckTimer > 60) { // Check every 1 second
+                    const distMoved = Math.hypot(car.x - car.lastStuckX, car.y - car.lastStuckY);
+                    if (distMoved < 20) { // Hasn't moved a full tile
+                        car.stuckTimer += 60; // Accumulate stuck time
+                    } else {
+                        car.stuckTimer = 0; // Free!
                     }
-                } else {
-                    car.stuckTimer = 0;
+                    car.lastStuckX = car.x;
+                    car.lastStuckY = car.y;
+                    car.stuckCheckTimer = 0;
+                }
+
+                if (car.stuckTimer >= 300) { // 5 seconds total - stuck completely
+                    car.health = 0; // Despawn it to clear the jam
+                } else if (car.stuckTimer === 180 && car.stuckCheckTimer === 0) { // exactly at 3 seconds (trigger once after a check)
+                    // Turn Around
+                    car.angle += Math.PI;
+                    car.speed = 2; // Jumpstart
+
+                    // Switch Lane
+                    const laneOffset = 16;
+                    const currentTx = Math.floor(car.x / TILE_SIZE);
+                    const currentTy = Math.floor(car.y / TILE_SIZE);
+                    const cx = currentTx * TILE_SIZE + TILE_SIZE / 2;
+                    const cy = currentTy * TILE_SIZE + TILE_SIZE / 2;
+
+                    const offX = Math.cos(car.angle + Math.PI / 2) * laneOffset;
+                    const offY = Math.sin(car.angle + Math.PI / 2) * laneOffset;
+
+                    car.x = cx + offX;
+                    car.y = cy + offY;
+
+                    // NOTE: We do NOT reset stuckTimer here anymore, so it can reach 300 if still stuck
                 }
 
                 // Update Siren Sound (Police Only)
@@ -1448,8 +1604,9 @@
                             }
 
                             // Damage on high speed impact
-                            // (Simplified: just sound for now)
-                            playSound('brake', { x: car.x, y: car.y }, false, 0.5); // Screech/Crash noise
+                            if (Math.random() < 0.05) { // Throttle sound spam
+                                playSound('brake', { x: car.x, y: car.y }, false, 0.4); // Screech/Crash noise
+                            }
                         }
                     }
                 }
@@ -1996,6 +2153,42 @@
             updateTraffic();
             checkPedestrianCollisions();
 
+            // Ambient Bird Sounds (Park Proximity)
+            let inPark = false;
+            const pX = Math.floor(player.x / TILE_SIZE);
+            const pY = Math.floor(player.y / TILE_SIZE);
+
+            // Search 5x5 area around player for grass (type 2)
+            for (let dy = -2; dy <= 2; dy++) {
+                for (let dx = -2; dx <= 2; dx++) {
+                    const ty = pY + dy;
+                    const tx = pX + dx;
+                    if (map[ty] && map[ty][tx] === 2) {
+                        inPark = true;
+                        break;
+                    }
+                }
+                if (inPark) break;
+            }
+
+            if (!window.birdsAudio && sounds['birds']) {
+                window.birdsAudio = sounds['birds'];
+                window.birdsAudio.loop = true;
+                window.birdsAudio.volume = 0;
+                // Requires user interaction first, catch the error if blocked
+                window.birdsAudio.play().catch(() => { });
+            }
+
+            if (window.birdsAudio) {
+                // Fade volume smoothly
+                const targetVol = inPark ? 0.3 : 0.0;
+                if (window.birdsAudio.volume < targetVol) {
+                    window.birdsAudio.volume = Math.min(targetVol, window.birdsAudio.volume + 0.005);
+                } else if (window.birdsAudio.volume > targetVol) {
+                    window.birdsAudio.volume = Math.max(targetVol, window.birdsAudio.volume - 0.01);
+                }
+            }
+
             // Doraemon Mechanics Updates
             if (player.superModeTimer > 0) {
                 player.superModeTimer--;
@@ -2196,6 +2389,20 @@
                     // Collision Check
                     if (!checkArgCollision(nextX, player.y)) player.x = nextX;
                     if (!checkArgCollision(player.x, nextY)) player.y = nextY;
+
+                    // Footstep logic
+                    player.footstepDist = (player.footstepDist || 0) + Math.abs(moveSpeed);
+                    if (player.footstepDist > 30) {
+                        player.footstepDist = 0;
+                        const px = Math.floor(player.x / TILE_SIZE);
+                        const py = Math.floor(player.y / TILE_SIZE);
+                        const tile = (map[py] && map[py][px]) ? map[py][px] : 0;
+                        if (tile === 2) { // 2 = iso_ground_garden
+                            playSound('footstep_grass', { x: player.x, y: player.y }, false, 0.4);
+                        } else {
+                            playSound('footstep_pavement', { x: player.x, y: player.y }, false, 0.5);
+                        }
+                    }
                 }
             }
 
@@ -2838,65 +3045,31 @@
                         ctx.restore();
                     }
 
-                    // --- STREET PROPS SPAWNING ---
-                    const propSeed = (x * 73 + y * 19) % 100; // Deterministic random
-
-                    // On Sidewalks: Vending Machines, Mailboxes
-                    if (tileType === 1) {
-                        if (propSeed === 5) { // 1% chance
-                            renderList.push({
-                                sortY: iso.y + TILE_SIZE / 2, // Centerish
-                                type: 'street_prop',
-                                img: assets.iso_prop_vending,
-                                isoX: iso.x,
-                                isoY: iso.y
-                            });
-                        } else if (propSeed === 15) { // 1% chance
-                            renderList.push({
-                                sortY: iso.y + TILE_SIZE / 2,
-                                type: 'street_prop',
-                                img: assets.iso_prop_mailbox,
-                                isoX: iso.x,
-                                isoY: iso.y
-                            });
-                        }
-                        else if (propSeed === 25) { // Sakura on street
-                            renderList.push({
-                                sortY: iso.y + TILE_SIZE / 2,
-                                type: 'street_prop',
-                                img: assets.iso_prop_sakura,
-                                isoX: iso.x,
-                                isoY: iso.y,
-                                scale: 1.2
-                            });
-                        }
-                    }
-
-                    // On Grass: Sakura, Pipes
-                    // Also check for empty tiles that are effectively grass? tileType 2 is grass.
-                    if (tileType === 2) {
-                        if (propSeed === 35) { // Sakura
-                            renderList.push({
-                                sortY: iso.y + TILE_SIZE / 2,
-                                type: 'street_prop',
-                                img: assets.iso_prop_sakura,
-                                isoX: iso.x,
-                                isoY: iso.y,
-                                scale: 1.2
-                            });
-                        }
-                        else if (propSeed === 45) { // Pipes
-                            renderList.push({
-                                sortY: iso.y + TILE_SIZE / 2,
-                                type: 'street_prop',
-                                img: assets.iso_prop_pipes,
-                                isoX: iso.x,
-                                isoY: iso.y
-                            });
-                        }
-                    }
                 }
             }
+
+            // Render Static Props from the persistent array
+            staticProps.forEach(prop => {
+                // Calculate ISO position based on current camera offset
+                const iso = toIso(prop.gridX * TILE_SIZE, prop.gridY * TILE_SIZE);
+                // Correct Culling (Relative to Camera/Player)
+                // Use same logic as main loop: pIso is the center reference
+                if (iso.x < pIso.x - (width / CAM_ZOOM) - 600 || iso.x > pIso.x + (width / CAM_ZOOM) + 600 ||
+                    iso.y < pIso.y - (height / CAM_ZOOM) - 600 || iso.y > pIso.y + (height / CAM_ZOOM) + 600) return;
+
+                renderList.push({
+                    sortY: iso.y + TILE_SIZE / 2,
+                    type: 'street_prop',
+                    img: assets[prop.assetKey], // Use asset key to lookup
+                    isoX: iso.x,
+                    isoY: iso.y,
+                    scale: prop.scale || 1,
+                    // Pass debug info
+                    isDebug: prop.type === 'vending_machine',
+                    worldX: prop.gridX * TILE_SIZE + TILE_SIZE / 2,
+                    worldY: prop.gridY * TILE_SIZE + TILE_SIZE / 2
+                });
+            });
 
             // Draw Ground Decals (Craters, Blood, Skidmarks) - Flattened
             ctx.save();
@@ -3919,7 +4092,10 @@
             failed: 'assets/sounds/failed.mp3',
             siren: 'assets/sounds/police-siren.mp3',
             rain: 'assets/sounds/rain.wav',
-            thunder: 'assets/sounds/thunder.wav'
+            thunder: 'assets/sounds/thunder.wav',
+            birds: 'assets/sounds/birds.wav',
+            footstep_pavement: 'assets/sounds/footstep_pavement.wav',
+            footstep_grass: 'assets/sounds/footstep_grass.wav'
         };
 
         // Unified Audio System (HTML5 Audio Backed)
@@ -3949,7 +4125,7 @@
 
             // Spatial Audio Logic
             let finalVol = vol;
-            if (pos) {
+            if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
                 const dist = Math.hypot(player.x - pos.x, player.y - pos.y);
                 const maxDist = 600;
 
@@ -3962,7 +4138,7 @@
 
             // Clone for overlapping SFX
             let audio;
-            if (key === 'theme' || key === 'accomplished' || key === 'rain') {
+            if (key === 'theme' || key === 'accomplished' || key === 'rain' || key === 'birds') {
                 audio = sounds[key];
             } else {
                 audio = sounds[key].cloneNode();
