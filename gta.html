@@ -1408,6 +1408,13 @@
                                 targetY = centerY - laneOffset;
                                 hasTarget = true;
                             }
+                        } else if (tile !== 5) { // Off road! (Not 0, 4, or 5)
+                            // Hard steer towards the absolute center of the current tile to try and find a road
+                            targetX = centerX;
+                            targetY = centerY;
+                            hasTarget = true;
+                            // Reduce speed heavily to regain control
+                            car.speed *= 0.8;
                         }
 
                         if (hasTarget) {
@@ -1574,10 +1581,25 @@
                                 const moveX = Math.cos(angle) * overlap * 0.5;
                                 const moveY = Math.sin(angle) * overlap * 0.5;
 
-                                car.x += moveX;
-                                car.y += moveY;
-                                other.x -= moveX;
-                                other.y -= moveY;
+                                // Helper constraint: Ensure car stays on a road tile after being shoved laterally
+                                const isRoad = (nx, ny) => {
+                                    const cx = Math.floor(nx / TILE_SIZE);
+                                    const cy = Math.floor(ny / TILE_SIZE);
+                                    if (cx >= 0 && cx < mapWidth && cy >= 0 && cy < mapHeight) {
+                                        const t = map[cy][cx];
+                                        return (t === 0 || t === 4 || t === 5); // Road tiles
+                                    }
+                                    return false;
+                                };
+
+                                if (isRoad(car.x + moveX, car.y + moveY)) {
+                                    car.x += moveX;
+                                    car.y += moveY;
+                                }
+                                if (isRoad(other.x - moveX, other.y - moveY)) {
+                                    other.x -= moveX;
+                                    other.y -= moveY;
+                                }
 
                                 // Bounce Back (Reverse)
                                 // If moving towards each other, reverse speed
