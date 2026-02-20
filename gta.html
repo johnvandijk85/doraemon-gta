@@ -1324,7 +1324,7 @@
                 }
 
                 if (car.stuckTimer >= 300) { // 5 seconds total - stuck completely
-                    car.health = 0; // Despawn it to clear the jam
+                    car.needsDespawn = true; // Flag for silent removal instead of exploding
                 } else if (car.stuckTimer === 180 && car.stuckCheckTimer === 0) { // exactly at 3 seconds (trigger once after a check)
                     // Turn Around
                     car.angle += Math.PI;
@@ -1554,68 +1554,98 @@
                     }
                 }
 
-                // Car-Car Collision
-                for (let other of cars) {
-                    if (other !== car) {
-                        const dx = car.x - other.x;
-                        const dy = car.y - other.y;
-                        const d = Math.hypot(dx, dy);
-                        const minDist = 30; // Reduced for 2-way traffic passing
+                // Distance culling for car-car collisions (only process if near player)
+                const distToPlayer = Math.hypot(car.x - player.x, car.y - player.y);
+                if (distToPlayer < 1000) {
+                    // Car-Car Collision
+                    for (let other of cars) {
+                        if (other !== car) {
+                            const dx = car.x - other.x;
+                            const dy = car.y - other.y;
+                            const d = Math.hypot(dx, dy);
+                            const minDist = 30; // Reduced for 2-way traffic passing
 
-                        if (d < minDist) {
-                            // Collision!
-                            // Resolve overlap
-                            const overlap = minDist - d;
-                            const angle = Math.atan2(dy, dx);
+                            if (d < minDist) {
+                                // Collision!
+                                // Resolve overlap
+                                const overlap = minDist - d;
+                                const angle = Math.atan2(dy, dx);
 
-                            const moveX = Math.cos(angle) * overlap * 0.5;
-                            const moveY = Math.sin(angle) * overlap * 0.5;
+                                const moveX = Math.cos(angle) * overlap * 0.5;
+                                const moveY = Math.sin(angle) * overlap * 0.5;
 
-                            car.x += moveX;
-                            car.y += moveY;
-                            other.x -= moveX;
-                            other.y -= moveY;
+                                car.x += moveX;
+                                car.y += moveY;
+                                other.x -= moveX;
+                                other.y -= moveY;
 
-                            // Bounce Back (Reverse)
-                            // If moving towards each other, reverse speed
-                            // Simple: Set speed to negative (reverse)
-                            // Only if colliding "hard"
-                            if (Math.abs(car.speed) > 0.5 || Math.abs(other.speed) > 0.5) {
-                                car.speed = -1.5; // Bounce back speed
-                                other.speed = -1.5;
+                                // Bounce Back (Reverse)
+                                // If moving towards each other, reverse speed
+                                // Only if colliding "hard"
+                                if (Math.abs(car.speed) > 0.5 || Math.abs(other.speed) > 0.5) {
+                                    // Asymmetric bounce to prevent infinite identical bouncing
+                                    if (car.x < other.x) {
+                                        car.speed = -1.5;
+                                        other.speed = 0; // Yield
+                                    } else {
+                                        car.speed = 0; // Yield
+                                        other.speed = -1.5;
+                                    }
 
-                                // Add random angle noise to prevent perfect lock
-                                car.angle += (Math.random() - 0.5) * 0.2;
-                                other.angle += (Math.random() - 0.5) * 0.2;
+                                    // Add random angle noise to prevent perfect lock
+                                    car.angle += (Math.random() - 0.5) * 0.4;
+                                    other.angle += (Math.random() - 0.5) * 0.4;
 
-                                // Add Collision Stress
-                                car.collisionStress += 2;
-                                other.collisionStress += 2;
+                                    // Add Collision Stress
+                                    car.collisionStress += 2;
+                                    other.collisionStress += 2;
 
-                                // Trigger Reverse Mode if Stressed
-                                if (car.collisionStress > COLLISION_STRESS_THRESHOLD) {
-                                    car.reversingTimer = REVERSE_DURATION;
-                                    car.collisionStress = 0; // Reset
+                                    // Trigger Reverse Mode if Stressed
+                                    if (car.collisionStress > COLLISION_STRESS_THRESHOLD) {
+                                        car.reversingTimer = REVERSE_DURATION;
+                                        car.collisionStress = 0; // Reset
+                                    }
+                                    if (other.collisionStress > COLLISION_STRESS_THRESHOLD) {
+                                        other.reversingTimer = REVERSE_DURATION;
+                                        other.collisionStress = 0; // Reset
+                                    }
                                 }
-                                if (other.collisionStress > COLLISION_STRESS_THRESHOLD) {
-                                    other.reversingTimer = REVERSE_DURATION;
-                                    other.collisionStress = 0; // Reset
-                                }
-                            }
 
-                            // Damage on high speed impact
-                            if (Math.random() < 0.05) { // Throttle sound spam
-                                playSound('brake', { x: car.x, y: car.y }, false, 0.4); // Screech/Crash noise
+                                // Damage on high speed impact
+                                if (Math.random() < 0.05) { // Throttle sound spam
+                                    playSound('brake', { x: car.x, y: car.y }, false, 0.4); // Screech/Crash noise
+                                }
                             }
                         }
                     }
-                }
+                } // End distance culling
 
             });
 
-            // Cleanup dead cars from collision loop (tricky during iteration, handle in separate pass or keep simple)
+            // Cleanup dead or stuck cars from collision loop
             for (let i = cars.length - 1; i >= 0; i--) {
-                if (cars[i].health <= 0) explodeCar(i);
+                const c = cars[i];
+                if (c.health <= 0) {
+                    explodeCar(i);
+                } else if (c.needsDespawn) {
+                    // Silently clear traffic jams without explosions
+                    if (c.engine) {
+                        c.engine.pause();
+                        c.engine = null;
+                    }
+                    if (c.siren) {
+                        c.siren.pause();
+                        c.siren = null;
+                    }
+                    cars.splice(i, 1);
+
+                    // Respawn a new car later to keep traffic flowing
+                    setTimeout(() => {
+                        if (cars.length < CAR_COUNT) {
+                            spawnCarsSingle(); // Assuming spawnCarsSingle is available globally/in scope
+                        }
+                    }, 5000);
+                }
             }
 
             // Player Car Collision with Traffic
@@ -3130,6 +3160,10 @@
             // Collect Cars
             cars.forEach(car => {
                 const iso = toIso(car.x, car.y);
+                // Culling (Approximate wide bounds)
+                if (iso.x < pIso.x - (width / CAM_ZOOM) - 600 || iso.x > pIso.x + (width / CAM_ZOOM) + 600 ||
+                    iso.y < pIso.y - (height / CAM_ZOOM) - 600 || iso.y > pIso.y + (height / CAM_ZOOM) + 600) return;
+
                 renderList.push({
                     sortY: iso.y,
                     type: car.type, // Respect the car's actual type (e.g. 'police_car')
@@ -3154,6 +3188,10 @@
             // Collect NPCs
             npcs.forEach(npc => {
                 const iso = toIso(npc.x, npc.y);
+                // Culling (Approximate wide bounds)
+                if (iso.x < pIso.x - (width / CAM_ZOOM) - 600 || iso.x > pIso.x + (width / CAM_ZOOM) + 600 ||
+                    iso.y < pIso.y - (height / CAM_ZOOM) - 600 || iso.y > pIso.y + (height / CAM_ZOOM) + 600) return;
+
                 renderList.push({
                     sortY: iso.y,
                     type: 'npc',
