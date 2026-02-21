@@ -118,6 +118,7 @@
             iso_gian_house: 'assets/images/iso_gian_house.png',
             iso_gian_house: 'assets/images/iso_gian_house.png',
             iso_shizuka_house: 'assets/images/iso_shizuka_house.png',
+            iso_traffic_light: 'assets/iso_traffic_light.png?v=' + Date.now() + '_doraemon',
             iso_scooter: 'assets/images/iso_scooter.png?v=' + Date.now() + '_final',
             // Doraemon Items
             bamboo_copter: 'assets/images/bamboo_copter.png',
@@ -1500,8 +1501,54 @@
                 const ctx = Math.floor(car.x / TILE_SIZE);
                 const cty = Math.floor(car.y / TILE_SIZE);
 
+                // --- Traffic Light & Intersection Logic ---
+                // Look ahead 2 tiles to see if approaching an intersection
+                const lookaheadFrames = 60; // Approx 1.5 seconds ahead at normal speed
+                const ax = car.x + Math.cos(car.angle) * car.speed * lookaheadFrames;
+                const ay = car.y + Math.sin(car.angle) * car.speed * lookaheadFrames;
+                const aheadTx = Math.floor(ax / TILE_SIZE);
+                const aheadTy = Math.floor(ay / TILE_SIZE);
+
+                let approachingIntersection = false;
+                if (aheadTx >= 0 && aheadTx < mapWidth && aheadTy >= 0 && aheadTy < mapHeight) {
+                    if (map[aheadTy][aheadTx] === 5) { // 5 is intersection tile
+                        approachingIntersection = true;
+                    }
+                }
+
+                let currentTile = -1;
                 if (ctx >= 0 && ctx < mapWidth && cty >= 0 && cty < mapHeight) {
-                    const currentTile = map[cty][ctx];
+                    currentTile = map[cty][ctx];
+                }
+
+                // If approaching intersection, check traffic light
+                if (approachingIntersection && currentTile !== 5) {
+                    // Determine car's general direction (Horizontal vs Vertical)
+                    const cos = Math.cos(car.angle);
+                    const sin = Math.sin(car.angle);
+                    let isHorizontal = Math.abs(cos) > 0.5;
+
+                    // Does the light match their direction?
+                    let hasGreenLight = false;
+                    if (isHorizontal && globalTrafficState.direction === 'EW') hasGreenLight = true;
+                    if (!isHorizontal && globalTrafficState.direction === 'NS') hasGreenLight = true;
+
+                    if (!hasGreenLight) {
+                        // Light is RED. Calculate distance to the intersection boundary.
+                        const ix = aheadTx * TILE_SIZE + TILE_SIZE / 2;
+                        const iy = aheadTy * TILE_SIZE + TILE_SIZE / 2;
+                        const distToCenter = Math.hypot(car.x - ix, car.y - iy);
+
+                        // Stop Line: ~1 TILE_SIZE from center
+                        if (distToCenter < TILE_SIZE * 0.8) {
+                            car.speed *= 0.8; // Brake hard
+                            if (car.speed < 0.2) car.speed = 0; // Full stop
+                        }
+                    }
+                }
+                // --- End Traffic Light Logic ---
+
+                if (ctx >= 0 && ctx < mapWidth && cty >= 0 && cty < mapHeight) {
                     if (currentTile === 5 && car.turnCooldown === 0) { // Intersection
                         const centerX = ctx * TILE_SIZE + TILE_SIZE / 2;
                         const centerY = cty * TILE_SIZE + TILE_SIZE / 2;
@@ -2239,7 +2286,22 @@
             return Math.floor(base + Math.random() * range);
         }
 
+        // Global Traffic System
+        const globalTrafficState = {
+            direction: 'NS', // North/South or East/West
+            timer: 0,
+            duration: 300 // 5 seconds per cycle
+        };
+
         function update() {
+            // Update Global Traffic Lights
+            globalTrafficState.timer++;
+            if (globalTrafficState.timer > globalTrafficState.duration) {
+                globalTrafficState.timer = 0;
+                globalTrafficState.direction = globalTrafficState.direction === 'NS' ? 'EW' : 'NS';
+                // Optional: Play a tiny click sound for debug/feel? Not necessary.
+            }
+
             // Pay Phone Logic
             updatePhones();
             updateDropOff();
@@ -3168,6 +3230,30 @@
                 });
             });
 
+            // Traffic Light Visuals
+            // Scan for intersections near player and push proxy render objects
+            const pX = Math.floor(player.x / TILE_SIZE);
+            const pY = Math.floor(player.y / TILE_SIZE);
+            const viewRadius = 8; // Tiles to check around player
+
+            for (let ty = Math.max(0, pY - viewRadius); ty <= Math.min(mapHeight - 1, pY + viewRadius); ty++) {
+                for (let tx = Math.max(0, pX - viewRadius); tx <= Math.min(mapWidth - 1, pX + viewRadius); tx++) {
+                    if (map[ty][tx] === 5) {
+                        const centerX = tx * TILE_SIZE + TILE_SIZE / 2;
+                        const centerY = ty * TILE_SIZE + TILE_SIZE / 2;
+                        const iso = toIso(centerX, centerY);
+
+                        renderList.push({
+                            sortY: iso.y, // Sort at the ground level center
+                            type: 'traffic_lights',
+                            isoX: iso.x,
+                            isoY: iso.y,
+                            state: globalTrafficState.direction // 'NS' or 'EW'
+                        });
+                    }
+                }
+            }
+
             // Draw Ground Decals (Craters, Blood, Skidmarks) - Flattened
             ctx.save();
 
@@ -3321,6 +3407,68 @@
 
             // Draw Sorted Objects
             renderList.forEach(item => {
+                // Traffic Lights (Drawn over the intersection)
+                if (item.type === 'traffic_lights') {
+                    ctx.save();
+                    ctx.translate(item.isoX, item.isoY);
+
+                    // NS Lights (Vertical axis on map = Top-Right / Bottom-Left in Iso)
+                    const nsColor = item.state === 'NS' ? 'rgba(0, 255, 0, 0.8)' : 'rgba(255, 0, 0, 0.8)';
+                    // EW Lights (Horizontal axis on map = Top-Left / Bottom-Right in Iso)
+                    const ewColor = item.state === 'EW' ? 'rgba(0, 255, 0, 0.8)' : 'rgba(255, 0, 0, 0.8)';
+
+                    // Draw glowing orbs floating over the sprite
+                    const offset = TILE_SIZE / 2; // Position on the outer corners of the tile
+
+                    const drawLightPole = (isoDx, isoDy, color) => {
+                        // Draw Pole
+                        const img = assets.iso_traffic_light;
+                        if (img && img.complete) {
+                            const scale = 0.05; // Tuned for better scene fit
+                            const drawW = img.naturalWidth * scale;
+                            const drawH = img.naturalHeight * scale;
+                            // Draw so base is at (isoDx, isoDy)
+                            ctx.drawImage(img, isoDx - drawW / 2, isoDy - drawH, drawW, drawH);
+
+                            // Determine which hole to light up based on color string
+                            // The image has 3 holes. Top=Red (15%), Middle=Yellow (25%), Bottom=Green (35%)
+                            let yRatio = 0.15; // default Top/Red
+                            if (color.includes('0, 255, 0') || color === '#0f0') {
+                                yRatio = 0.35; // Bottom/Green
+                            }
+
+                            // Draw colored light overlay on the specific lamp spot
+                            const lightYOffset = isoDy - drawH + (drawH * yRatio);
+
+                            ctx.beginPath();
+                            ctx.arc(isoDx - (drawW * 0.05), lightYOffset, 1.5, 0, Math.PI * 2);
+                            ctx.fillStyle = color;
+                            ctx.fill();
+                            // Glow
+                            ctx.beginPath();
+                            ctx.arc(isoDx - (drawW * 0.05), lightYOffset, 4, 0, Math.PI * 2);
+                            ctx.fillStyle = color.replace('0.8)', '0.3)');
+                            ctx.fill();
+                        }
+                    };
+
+                    // To calculate ISO offsets relative to center:
+                    // world +X (EW right) -> iso (offset, offset/2)
+                    // world -X (EW left) -> iso (-offset, -offset/2)
+                    // world +Y (NS down) -> iso (-offset, offset/2)
+                    // world -Y (NS up) -> iso (offset, -offset/2)
+
+                    // Draw EW lights (world X axis)
+                    drawLightPole(offset, offset / 2, ewColor);
+                    drawLightPole(-offset, -offset / 2, ewColor);
+
+                    // Draw NS lights (world Y axis)
+                    drawLightPole(-offset, offset / 2, nsColor);
+                    drawLightPole(offset, -offset / 2, nsColor);
+
+                    ctx.restore();
+                }
+
                 // Building
                 if (item.type === 'building') {
                     const img = item.img;
