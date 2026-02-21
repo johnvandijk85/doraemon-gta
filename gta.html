@@ -636,6 +636,21 @@
         }
 
 
+        function triggerPanic(cx, cy, radius) {
+            npcs.forEach(npc => {
+                const dist = Math.hypot(npc.x - cx, npc.y - cy);
+                if (dist < radius && npc.state !== 'panic' && !npc.isPolice) {
+                    npc.state = 'panic';
+                    npc.stateTimer = 180 + Math.random() * 120; // Panic for 3-5 seconds
+                    npc.speed = 3.5; // Fast run
+                    // Run away from source
+                    npc.angle = Math.atan2(npc.y - cy, npc.x - cx) + (Math.random() - 0.5) * 0.5;
+                    // Visual feedback
+                    spawnFloatingText(npc.x, npc.y, (Math.random() > 0.5 ? "!" : "Ahhh!"), "#ff0000");
+                }
+            });
+        }
+
         function updateNPCs() {
             npcs.forEach(npc => {
                 // Police Logic (unchanged for now, or minimal integration)
@@ -666,9 +681,36 @@
                     npc.stateTimer--;
 
                     // State Machine
-                    // States: 'idle', 'walk', 'wait_to_cross', 'crossing'
+                    // States: 'idle', 'walk', 'wait_to_cross', 'crossing', 'panic'
 
-                    if (npc.state === 'idle') {
+                    if (npc.state === 'panic') {
+                        if (npc.stateTimer <= 0) {
+                            npc.state = 'walk'; // Calm down
+                            npc.speed = 1.0 + Math.random() * 0.5;
+                        } else {
+                            // Run wildly
+                            const nextX = npc.x + Math.cos(npc.angle) * npc.speed;
+                            const nextY = npc.y + Math.sin(npc.angle) * npc.speed;
+
+                            // Bounce off buildings or boundaries
+                            const tx = Math.floor(nextX / TILE_SIZE);
+                            const ty = Math.floor(nextY / TILE_SIZE);
+                            let hitWall = false;
+
+                            if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) {
+                                hitWall = true;
+                            } else {
+                                if (map[ty][tx] === 3) hitWall = true; // Bounce off buildings
+                            }
+
+                            if (hitWall) {
+                                npc.angle += Math.PI + (Math.random() - 0.5); // Reverse with noise
+                            } else {
+                                npc.x = nextX;
+                                npc.y = nextY;
+                            }
+                        }
+                    } else if (npc.state === 'idle') {
                         if (npc.stateTimer <= 0) {
                             npc.state = 'walk';
                             npc.stateTimer = 100 + Math.random() * 200;
@@ -1790,6 +1832,7 @@
 
             // Sound
             playSound('explosion', { x: car.x, y: car.y });
+            triggerPanic(car.x, car.y, 600);
 
             // 1. Permanent Crater (Visual)
             bloodStains.push({
@@ -2511,6 +2554,7 @@
                 } else { // Can only shoot on foot for now
                     const fireRate = player.weapon === 'machinegun' ? 100 : 300;
                     if (now - player.lastShotTime > fireRate) {
+                        player.lastShotTime = now;
                         // Fire!
                         bullets.push({
                             x: player.x + Math.cos(player.angle) * 20,
@@ -2521,6 +2565,7 @@
                             owner: 'player'
                         });
                         playSound('shoot', { x: player.x, y: player.y }, false, 0.4);
+                        triggerPanic(player.x, player.y, 400); // Panic nearby pedestrians
                         player.lastShotTime = now;
                     }
                 }
