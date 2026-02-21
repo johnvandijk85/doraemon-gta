@@ -3908,6 +3908,88 @@
 
             // Draw HUD Elements (Screen Space)
             drawMissionArrows();
+
+            // Draw Minimap
+            drawMinimap();
+        }
+
+        function drawMinimap() {
+            const size = 150; // Map size
+            const margin = 20;
+            const x = canvas.width - size - margin;
+            const y = margin; // Top-Right corner
+            const mapZoom = 0.1; // Radar scale
+
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Screen space
+
+            // 1. Draw Radar Background
+            ctx.beginPath();
+            ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#555';
+            ctx.stroke();
+            ctx.clip(); // Restrict blips to inside the circle
+
+            // Helper to convert world position to radar position relative to player
+            const getRadarPos = (worldX, worldY) => {
+                const dx = (worldX - player.x) * mapZoom;
+                const dy = (worldY - player.y) * mapZoom;
+                return {
+                    rx: x + size / 2 + dx,
+                    ry: y + size / 2 + dy
+                };
+            };
+
+            // 2. Draw Entities
+
+            // Payphones (Mission Targets or idle)
+            phones.forEach(p => {
+                const pos = getRadarPos(p.x, p.y);
+                ctx.beginPath();
+                ctx.arc(pos.rx, pos.ry, 4, 0, Math.PI * 2);
+                ctx.fillStyle = p.ringing ? (Date.now() % 500 < 250 ? '#00ccff' : 'white') : '#335588';
+                ctx.fill();
+            });
+
+            // Police Blips (When wanted)
+            if (wantedLevel > 0) {
+                cars.forEach(car => {
+                    if (car.type === 'police_car') {
+                        const pos = getRadarPos(car.x, car.y);
+                        ctx.beginPath();
+                        ctx.arc(pos.rx, pos.ry, 4, 0, Math.PI * 2);
+                        // Flashing police lights
+                        ctx.fillStyle = Date.now() % 400 < 200 ? 'red' : 'blue';
+                        ctx.fill();
+                    }
+                });
+            }
+
+            // Mission Dropoff Blip
+            if (mission.active && mission.dropOff) {
+                const pos = getRadarPos(mission.dropOff.x, mission.dropOff.y);
+                ctx.beginPath();
+                ctx.arc(pos.rx, pos.ry, 6, 0, Math.PI * 2);
+                ctx.fillStyle = Date.now() % 600 < 300 ? '#ccff00' : '#88aa00';
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // 3. Draw Player (Center)
+            ctx.translate(x + size / 2, y + size / 2);
+            ctx.rotate(player.angle);
+            ctx.beginPath();
+            ctx.moveTo(8, 0);
+            ctx.lineTo(-6, 5);
+            ctx.lineTo(-6, -5);
+            ctx.closePath();
+            ctx.fillStyle = 'white';
+            ctx.fill();
+
+            ctx.restore();
         }
 
         function drawPhones(renderList) {
